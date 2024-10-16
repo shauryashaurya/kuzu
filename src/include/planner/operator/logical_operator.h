@@ -72,7 +72,7 @@ struct LogicalOperatorUtils {
 class LogicalOperator {
 public:
     explicit LogicalOperator(LogicalOperatorType operatorType)
-        : operatorType{operatorType}, cardinality{0} {}
+        : operatorType{operatorType}, cardinality{0}, factorizedCard{0} {}
     explicit LogicalOperator(LogicalOperatorType operatorType,
         std::shared_ptr<LogicalOperator> child);
     explicit LogicalOperator(LogicalOperatorType operatorType,
@@ -138,6 +138,7 @@ protected:
     std::unique_ptr<Schema> schema;
     logical_op_vector_t children;
     common::cardinality_t cardinality;
+    common::cardinality_t factorizedCard;
 };
 
 } // namespace planner
