@@ -4,7 +4,6 @@
 #include "binder/query/reading_clause/bound_match_clause.h"
 #include "binder/query/reading_clause/bound_table_function_call.h"
 #include "common/enums/join_type.h"
-#include "function/gds_function.h"
 #include "planner/planner.h"
 
 using namespace kuzu::binder;

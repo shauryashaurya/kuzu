@@ -181,7 +181,8 @@ uint32_t OpProfileTree::fillOpProfileBoxes(const LogicalOperator* op, uint32_t r
     uint32_t colIdx, uint32_t& maxFieldWidth) {
     auto opProfileBox = std::make_unique<OpProfileBox>(PlanPrinter::getOperatorName(op),
         PlanPrinter::getOperatorParams(op),
-        std::vector<std::string>{"Cardinality: " + std::to_string(op->getCardinality())});
+        std::vector<std::string>{"Card: " + std::to_string(op->getCardinality()),
+            "F-Card: " + std::to_string(op->getFCardinality())});
     maxFieldWidth = std::max(opProfileBox->getAttributeMaxLen(), maxFieldWidth);
     insertOpProfileBox(rowIdx, colIdx, std::move(opProfileBox));
     if (!op->getNumChildren()) {
