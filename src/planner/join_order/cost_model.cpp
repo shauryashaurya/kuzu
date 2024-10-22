@@ -8,8 +8,11 @@ using namespace kuzu::common;
 namespace kuzu {
 namespace planner {
 
-uint64_t CostModel::computeExtendCost(const LogicalPlan& childPlan) {
-    return childPlan.estCardinality;
+uint64_t CostModel::computeExtendCost(const LogicalOperator& op) {
+    // The motivation here is to treat extend as nested loop index join. Cost consists of probing
+    // the csr index and scan from rel tables. Num of probings into csr index is equal to fCard, and
+    // the scanned output is equal to card.
+    return op.getFCardinality() + op.getCardinality();
 }
 
 uint64_t CostModel::computeRecursiveExtendCost(uint8_t upperBound, double extensionRate,

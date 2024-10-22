@@ -72,7 +72,7 @@ struct LogicalOperatorUtils {
 class LogicalOperator {
 public:
     explicit LogicalOperator(LogicalOperatorType operatorType)
-        : operatorType{operatorType}, cardinality{0}, factorizedCard{0} {}
+        : operatorType{operatorType}, cardinality{0}, factorizedCardinality{0} {}
     explicit LogicalOperator(LogicalOperatorType operatorType,
         std::shared_ptr<LogicalOperator> child);
     explicit LogicalOperator(LogicalOperatorType operatorType,
@@ -87,7 +87,6 @@ public:
     void setChild(uint64_t idx, std::shared_ptr<LogicalOperator> child) {
         children[idx] = std::move(child);
     }
-    void setCardinality(common::cardinality_t cardinality_) { this->cardinality = cardinality_; }
 
     // Operator type.
     LogicalOperatorType getOperatorType() const { return operatorType; }
@@ -106,7 +105,13 @@ public:
     virtual std::unique_ptr<OPPrintInfo> getPrintInfo() const {
         return std::make_unique<OPPrintInfo>();
     }
+
+    void setCardinality(common::cardinality_t cardinality_) { this->cardinality = cardinality_; }
+    void setFCardinality(common::cardinality_t cardinality_) {
+        this->factorizedCardinality = cardinality_;
+    }
     common::cardinality_t getCardinality() const { return cardinality; }
+    common::cardinality_t getFCardinality() const { return factorizedCardinality; }
 
     // TODO: remove this function once planner do not share operator across plans
     virtual std::unique_ptr<LogicalOperator> copy() = 0;
@@ -138,7 +143,7 @@ protected:
     std::unique_ptr<Schema> schema;
     logical_op_vector_t children;
     common::cardinality_t cardinality;
-    common::cardinality_t factorizedCard;
+    common::cardinality_t factorizedCardinality;
 };
 
 } // namespace planner
