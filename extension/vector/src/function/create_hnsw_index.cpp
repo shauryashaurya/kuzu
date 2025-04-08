@@ -25,8 +25,8 @@ namespace vector_extension {
 CreateInMemHNSWSharedState::CreateInMemHNSWSharedState(const CreateHNSWIndexBindData& bindData)
     : SimpleTableFuncSharedState{bindData.numRows}, name{bindData.indexName},
       nodeTable{bindData.context->getStorageManager()
-                    ->getTable(bindData.tableEntry->getTableID())
-                    ->cast<storage::NodeTable>()},
+              ->getTable(bindData.tableEntry->getTableID())
+              ->cast<storage::NodeTable>()},
       numNodes{bindData.numRows}, bindData{&bindData} {
     hnswIndex = std::make_shared<InMemHNSWIndex>(bindData.context, nodeTable,
         bindData.tableEntry->getColumnID(bindData.propertyID), bindData.config.copy());
@@ -58,7 +58,12 @@ static std::unique_ptr<TableFuncSharedState> initCreateInMemHNSWSharedState(
 static std::unique_ptr<TableFuncLocalState> initCreateInMemHNSWLocalState(
     const TableFuncInitLocalStateInput& input) {
     const auto bindData = input.bindData.constPtrCast<CreateHNSWIndexBindData>();
-    return std::make_unique<CreateInMemHNSWLocalState>(bindData->numRows + 1);
+    auto& nodeTable = input.clientContext->getStorageManager()
+                          ->getTable(bindData->tableEntry->getTableID())
+                          ->cast<storage::NodeTable>();
+    return std::make_unique<CreateInMemHNSWLocalState>(input.clientContext->getTransaction(),
+        input.clientContext->getMemoryManager(), nodeTable,
+        bindData->tableEntry->getColumnID(bindData->propertyID), bindData->numRows + 1);
 }
 
 static offset_t createInMemHNSWTableFunc(const TableFuncInput& input, TableFuncOutput&) {
@@ -69,10 +74,10 @@ static offset_t createInMemHNSWTableFunc(const TableFuncInput& input, TableFuncO
     }
     const auto& hnswIndex = sharedState->hnswIndex;
     offset_t numNodesInserted = 0;
+    auto localState = input.localState->ptrCast<CreateInMemHNSWLocalState>();
     for (auto i = morsel.startOffset; i < morsel.endOffset; i++) {
-        numNodesInserted += hnswIndex->insert(i,
-            input.localState->ptrCast<CreateInMemHNSWLocalState>()->upperVisited,
-            input.localState->ptrCast<CreateInMemHNSWLocalState>()->lowerVisited);
+        numNodesInserted += hnswIndex->insert(input.context->clientContext->getTransaction(),
+            localState->embeddingScanState, i, localState->upperVisited, localState->lowerVisited);
     }
     sharedState->numNodesInserted.fetch_add(numNodesInserted);
     return morsel.endOffset - morsel.startOffset;
@@ -224,16 +229,30 @@ static std::unique_ptr<TableFuncSharedState> initFinalizeHNSWSharedState(
         *input.context->clientContext->getMemoryManager());
 }
 
+static std::unique_ptr<TableFuncLocalState> initFinalizeHNSWLocalState(
+    const TableFuncInitLocalStateInput& input) {
+    auto sharedState = input.sharedState.ptrCast<FinalizeHNSWSharedState>();
+    const auto bindData = sharedState->bindData->constPtrCast<CreateHNSWIndexBindData>();
+    auto& nodeTable = input.clientContext->getStorageManager()
+                          ->getTable(bindData->tableEntry->getTableID())
+                          ->cast<storage::NodeTable>();
+    return std::make_unique<FinalizeHNSWLocalState>(input.clientContext->getTransaction(),
+        input.clientContext->getMemoryManager(), nodeTable,
+        bindData->tableEntry->getColumnID(bindData->propertyID));
+}
+
 static offset_t finalizeHNSWTableFunc(const TableFuncInput& input, TableFuncOutput&) {
     const auto& context = *input.context->clientContext;
     const auto sharedState = input.sharedState->ptrCast<FinalizeHNSWSharedState>();
+    const auto localState = input.localState->ptrCast<FinalizeHNSWLocalState>();
     const auto& hnswIndex = input.sharedState->ptrCast<FinalizeHNSWSharedState>()->hnswIndex;
     const auto morsel = sharedState->getMorsel();
     if (morsel.isInvalid()) {
         return 0;
     }
     for (auto i = morsel.startOffset; i < morsel.endOffset; i++) {
-        hnswIndex->finalize(*context.getMemoryManager(), i, *sharedState->partitionerSharedState);
+        hnswIndex->finalize(context.getTransaction(), localState->embeddingScanState,
+            *context.getMemoryManager(), i, *sharedState->partitionerSharedState);
     }
     sharedState->numNodeGroupsFinalized.fetch_add(morsel.endOffset - morsel.startOffset);
     return morsel.endOffset - morsel.startOffset;
@@ -279,7 +298,7 @@ function_set InternalFinalizeHNSWIndexFunction::getFunctionSet() {
     auto func = std::make_unique<TableFunction>(name, inputTypes);
     func->bindFunc = finalizeHNSWBindFunc;
     func->initSharedStateFunc = initFinalizeHNSWSharedState;
-    func->initLocalStateFunc = TableFunction::initEmptyLocalState;
+    func->initLocalStateFunc = initFinalizeHNSWLocalState;
     func->tableFunc = finalizeHNSWTableFunc;
     func->finalizeFunc = finalizeHNSWTableFinalizeFunc;
     func->progressFunc = finalizeHNSWProgressFunc;
@@ -315,7 +334,7 @@ static std::string rewriteCreateHNSWQuery(main::ClientContext& context,
     params += stringFormat("alpha := {}, ", config.alpha);
     params += stringFormat("pu := {}", config.pu);
     auto columnName = hnswBindData->tableEntry->getProperty(hnswBindData->propertyID).getName();
-    query += stringFormat("CALL _CACHE_ARRAY_COLUMN_LOCALLY('{}', '{}');", tableName, columnName);
+    // query += stringFormat("CALL _CACHE_ARRAY_COLUMN_LOCALLY('{}', '{}');", tableName, columnName);
     query += stringFormat("CALL _CREATE_HNSW_INDEX('{}', '{}', '{}', {});", tableName, indexName,
         columnName, params);
     query += stringFormat("RETURN 'Index {} has been created.' as result;", indexName);

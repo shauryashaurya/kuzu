@@ -289,8 +289,23 @@ bool NodeGroup::lookup(const UniqLock& lock, const Transaction* transaction,
 }
 
 bool NodeGroup::lookup(const Transaction* transaction, const TableScanState& state) const {
-    const auto lock = chunkedGroups.lock();
-    return lookup(lock, transaction, state);
+    idx_t numTuplesFound = 0;
+    for (auto i = 0u; i < state.rowIdxVector->state->getSelVector().getSelSize(); i++) {
+        auto& nodeGroupScanState = *state.nodeGroupScanState;
+        const auto pos = state.rowIdxVector->state->getSelVector().getSelectedPositions()[i];
+        const auto rowIdx = state.rowIdxVector->getValue<row_idx_t>(pos);
+        ChunkedNodeGroup* chunkedGroupToScan = nullptr;
+        {
+            const auto lock = chunkedGroups.lock();
+            KU_ASSERT(!state.rowIdxVector->isNull(pos));
+            chunkedGroupToScan = findChunkedGroupFromRowIdx(lock, rowIdx);
+        }
+        KU_ASSERT(chunkedGroupToScan);
+        const auto rowIdxInChunkedGroup = rowIdx - chunkedGroupToScan->getStartRowIdx();
+        numTuplesFound += chunkedGroupToScan->lookup(transaction, state, nodeGroupScanState,
+            rowIdxInChunkedGroup, i);
+    }
+    return numTuplesFound == state.rowIdxVector->state->getSelVector().getSelSize();
 }
 
 // NOLINTNEXTLINE(readability-make-member-function-const): Semantically non-const.

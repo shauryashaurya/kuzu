@@ -88,7 +88,7 @@ protected:
 
 struct InMemHNSWLayerInfo {
     common::offset_t numNodes;
-    InMemEmbeddings* embeddings;
+    OnDiskEmbeddings* embeddings;
     MetricType metric;
     // The degree threshold of a node that will start to trigger shrinking during insertions. Thus,
     // it is also the max degree of a node in the graph before shrinking.
@@ -98,7 +98,7 @@ struct InMemHNSWLayerInfo {
     double alpha;
     int64_t efc;
 
-    InMemHNSWLayerInfo(common::offset_t numNodes, InMemEmbeddings* embeddings, MetricType metric,
+    InMemHNSWLayerInfo(common::offset_t numNodes, OnDiskEmbeddings* embeddings, MetricType metric,
         int64_t degreeThresholdToShrink, int64_t maxDegree, double alpha, int64_t efc)
         : numNodes{numNodes}, embeddings{embeddings}, metric{metric},
           degreeThresholdToShrink{degreeThresholdToShrink}, maxDegree{maxDegree}, alpha{alpha},
@@ -115,18 +115,24 @@ public:
     }
     common::offset_t getEntryPoint() const { return entryPoint.load(); }
 
-    void insert(common::offset_t offset, common::offset_t entryPoint_, VisitedState& visited);
-    common::offset_t searchNN(common::offset_t node, common::offset_t entryNode) const;
-    void finalize(storage::MemoryManager& mm, common::node_group_idx_t nodeGroupIdx,
+    void insert(transaction::Transaction* transaction, common::offset_t offset,
+        common::offset_t entryPoint_, VisitedState& visited, OnDiskEmbeddingScanState& scanState);
+    common::offset_t searchNN(transaction::Transaction* transaction, common::offset_t node,
+        common::offset_t entryNode, OnDiskEmbeddingScanState& scanState) const;
+    void finalize(transaction::Transaction* transaction, OnDiskEmbeddingScanState& scanState,
+        storage::MemoryManager& mm, common::node_group_idx_t nodeGroupIdx,
         const processor::PartitionerSharedState& partitionerSharedState) const;
 
 private:
-    std::vector<NodeWithDistance> searchKNN(const float* queryVector, common::offset_t entryNode,
-        common::length_t k, uint64_t configuredEf, VisitedState& visited) const;
-    static void shrinkForNode(const InMemHNSWLayerInfo& info, InMemHNSWGraph* graph,
+    std::vector<NodeWithDistance> searchKNN(transaction::Transaction* transaction,
+        const float* queryVector, common::offset_t entryNode, common::length_t k,
+        uint64_t configuredEf, VisitedState& visited, OnDiskEmbeddingScanState& scanState) const;
+    static void shrinkForNode(transaction::Transaction* transaction,
+        OnDiskEmbeddingScanState& scanState, const InMemHNSWLayerInfo& info, InMemHNSWGraph* graph,
         common::offset_t nodeOffset, common::length_t numNbrs);
 
-    void insertRel(common::offset_t srcNode, common::offset_t dstNode);
+    void insertRel(transaction::Transaction* transaction, common::offset_t srcNode,
+        common::offset_t dstNode, OnDiskEmbeddingScanState& scanState);
 
 private:
     std::atomic<common::offset_t> entryPoint;
@@ -143,8 +149,10 @@ public:
     common::offset_t getLowerEntryPoint() const override { return lowerLayer->getEntryPoint(); }
 
     // Note that the input is only `offset`, as we assume embeddings are already cached in memory.
-    bool insert(common::offset_t offset, VisitedState& upperVisited, VisitedState& lowerVisited);
-    void finalize(storage::MemoryManager& mm, common::node_group_idx_t nodeGroupIdx,
+    bool insert(transaction::Transaction* transaction, OnDiskEmbeddingScanState& scanState,
+        common::offset_t offset, VisitedState& upperVisited, VisitedState& lowerVisited);
+    void finalize(transaction::Transaction* transaction, OnDiskEmbeddingScanState& scanState,
+        storage::MemoryManager& mm, common::node_group_idx_t nodeGroupIdx,
         const HNSWIndexPartitionerSharedState& partitionerSharedState);
 
     void resetEmbeddings() { embeddings.reset(); }
@@ -154,7 +162,7 @@ private:
 
     std::unique_ptr<InMemHNSWLayer> upperLayer;
     std::unique_ptr<InMemHNSWLayer> lowerLayer;
-    std::unique_ptr<InMemEmbeddings> embeddings;
+    std::unique_ptr<OnDiskEmbeddings> embeddings;
 
     common::RandomEngine randomEngine;
 };

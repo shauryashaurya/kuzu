@@ -43,9 +43,13 @@ struct CreateInMemHNSWSharedState final : function::SimpleTableFuncSharedState {
 struct CreateInMemHNSWLocalState final : function::TableFuncLocalState {
     VisitedState upperVisited;
     VisitedState lowerVisited;
+    OnDiskEmbeddingScanState embeddingScanState;
 
-    explicit CreateInMemHNSWLocalState(common::offset_t numNodes)
-        : upperVisited{numNodes}, lowerVisited{numNodes} {}
+    CreateInMemHNSWLocalState(const transaction::Transaction* transaction,
+        storage::MemoryManager* mm, storage::NodeTable& nodeTable, common::column_id_t columnID,
+        common::offset_t numNodes)
+        : upperVisited{numNodes}, lowerVisited{numNodes},
+          embeddingScanState{transaction, mm, nodeTable, columnID} {}
 };
 
 struct FinalizeHNSWSharedState final : function::SimpleTableFuncSharedState {
@@ -58,6 +62,14 @@ struct FinalizeHNSWSharedState final : function::SimpleTableFuncSharedState {
     explicit FinalizeHNSWSharedState(storage::MemoryManager& mm) : SimpleTableFuncSharedState{} {
         partitionerSharedState = std::make_shared<HNSWIndexPartitionerSharedState>(mm);
     }
+};
+
+struct FinalizeHNSWLocalState final : function::TableFuncLocalState {
+    OnDiskEmbeddingScanState embeddingScanState;
+
+    FinalizeHNSWLocalState(const transaction::Transaction* transaction, storage::MemoryManager* mm,
+        storage::NodeTable& nodeTable, common::column_id_t columnID)
+        : embeddingScanState{transaction, mm, nodeTable, columnID} {}
 };
 
 struct BoundQueryHNSWIndexInput {
