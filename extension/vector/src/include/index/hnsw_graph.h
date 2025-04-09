@@ -20,45 +20,34 @@ struct EmbeddingTypeInfo {
 
 class EmbeddingColumn {
 public:
-    explicit EmbeddingColumn(EmbeddingTypeInfo typeInfo) : typeInfo{std::move(typeInfo)} {}
-    virtual ~EmbeddingColumn() = default;
+    EmbeddingColumn(transaction::Transaction* transaction, EmbeddingTypeInfo typeInfo,
+        storage::NodeTable& nodeTable, common::column_id_t columnID);
 
     const EmbeddingTypeInfo& getTypeInfo() const { return typeInfo; }
     common::length_t getDimension() const { return typeInfo.dimension; }
 
-protected:
-    EmbeddingTypeInfo typeInfo;
-};
+    float* getEmbedding(transaction::Transaction* transaction,
+        storage::NodeTableScanState* scanState, common::offset_t offset) const;
 
-class InMemEmbeddings final : public EmbeddingColumn {
-public:
-    InMemEmbeddings(transaction::Transaction* transaction, EmbeddingTypeInfo typeInfo,
-        common::table_id_t tableID, common::column_id_t columnID);
-
-    float* getEmbedding(common::offset_t offset) const;
-    bool isNull(common::offset_t offset) const;
+    bool isNull(transaction::Transaction* transaction, storage::NodeTableScanState* scanState,
+        common::offset_t offset) const;
 
 private:
-    storage::CachedColumn* data;
+    void scan(transaction::Transaction* transaction, storage::NodeTableScanState* scanState,
+        common::offset_t offset) const;
+
+private:
+    EmbeddingTypeInfo typeInfo;
+    storage::CachedColumn* cachedData;
+    storage::NodeTable& nodeTable;
 };
 
-struct OnDiskEmbeddingScanState {
+struct EmbeddingScanState {
     common::DataChunk scanChunk;
     std::unique_ptr<storage::NodeTableScanState> scanState;
 
-    OnDiskEmbeddingScanState(const transaction::Transaction* transaction,
-        storage::MemoryManager* mm, storage::NodeTable& nodeTable, common::column_id_t columnID);
-};
-
-class OnDiskEmbeddings final : public EmbeddingColumn {
-public:
-    OnDiskEmbeddings(EmbeddingTypeInfo typeInfo, storage::NodeTable& nodeTable);
-
-    float* getEmbedding(transaction::Transaction* transaction,
-        storage::NodeTableScanState& scanState, common::offset_t offset) const;
-
-private:
-    storage::NodeTable& nodeTable;
+    EmbeddingScanState(const transaction::Transaction* transaction, storage::MemoryManager* mm,
+        storage::NodeTable& nodeTable, common::column_id_t columnID);
 };
 
 struct NodeWithDistance {

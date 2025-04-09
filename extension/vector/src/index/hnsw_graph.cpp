@@ -11,34 +11,7 @@ using namespace kuzu::storage;
 namespace kuzu {
 namespace vector_extension {
 
-InMemEmbeddings::InMemEmbeddings(transaction::Transaction* transaction, EmbeddingTypeInfo typeInfo,
-    common::table_id_t tableID, common::column_id_t columnID)
-    : EmbeddingColumn{std::move(typeInfo)} {
-    auto& cacheManager = transaction->getLocalCacheManager();
-    auto key = CachedColumn::getKey(tableID, columnID);
-    if (cacheManager.contains(key)) {
-        data = transaction->getLocalCacheManager().at(key).cast<CachedColumn>();
-    } else {
-        throw common::RuntimeException("Miss cached column, which should never happen.");
-    }
-}
-
-float* InMemEmbeddings::getEmbedding(common::offset_t offset) const {
-    auto [nodeGroupIdx, offsetInGroup] = StorageUtils::getNodeGroupIdxAndOffsetInChunk(offset);
-    KU_ASSERT(nodeGroupIdx < data->columnChunks.size());
-    const auto& listChunk = data->columnChunks[nodeGroupIdx]->cast<ListChunkData>();
-    return &listChunk.getDataColumnChunk()
-                ->getData<float>()[listChunk.getListStartOffset(offsetInGroup)];
-}
-
-bool InMemEmbeddings::isNull(common::offset_t offset) const {
-    auto [nodeGroupIdx, offsetInGroup] = StorageUtils::getNodeGroupIdxAndOffsetInChunk(offset);
-    KU_ASSERT(nodeGroupIdx < data->columnChunks.size());
-    const auto& listChunk = data->columnChunks[nodeGroupIdx]->cast<ListChunkData>();
-    return listChunk.isNull(offsetInGroup);
-}
-
-OnDiskEmbeddingScanState::OnDiskEmbeddingScanState(const transaction::Transaction* transaction,
+EmbeddingScanState::EmbeddingScanState(const transaction::Transaction* transaction,
     MemoryManager* mm, NodeTable& nodeTable, common::column_id_t columnID) {
     std::vector columnIDs{columnID};
     // The first ValueVector in scanChunk is reserved for nodeIDs.
@@ -52,26 +25,59 @@ OnDiskEmbeddingScanState::OnDiskEmbeddingScanState(const transaction::Transactio
     scanState->setToTable(transaction, &nodeTable, std::move(columnIDs));
 }
 
-OnDiskEmbeddings::OnDiskEmbeddings(EmbeddingTypeInfo typeInfo, NodeTable& nodeTable)
-    : EmbeddingColumn{std::move(typeInfo)}, nodeTable{nodeTable} {}
+EmbeddingColumn::EmbeddingColumn(transaction::Transaction* transaction, EmbeddingTypeInfo typeInfo,
+    NodeTable& nodeTable, common::column_id_t columnID)
+    : typeInfo{std::move(typeInfo)}, cachedData{nullptr}, nodeTable{nodeTable} {
+    auto& cacheManager = transaction->getLocalCacheManager();
+    const auto key = CachedColumn::getKey(nodeTable.getTableID(), columnID);
+    if (cacheManager.contains(key)) {
+        cachedData = transaction->getLocalCacheManager().at(key).cast<CachedColumn>();
+    }
+}
 
-float* OnDiskEmbeddings::getEmbedding(transaction::Transaction* transaction,
-    NodeTableScanState& scanState, common::offset_t offset) const {
-    scanState.nodeIDVector->setValue(0, common::internalID_t{offset, nodeTable.getTableID()});
-    scanState.nodeIDVector->state->getSelVectorUnsafe().setToUnfiltered(1);
-    scanState.source = TableScanSource::COMMITTED;
-    scanState.nodeGroupIdx = StorageUtils::getNodeGroupIdx(offset);
-    nodeTable.initScanState(transaction, scanState);
-    const auto result = nodeTable.lookup(transaction, scanState);
-    KU_ASSERT(result);
-    KU_UNUSED(result);
-    KU_ASSERT(scanState.outputVectors.size() == 1 &&
-              scanState.outputVectors[0]->state->getSelVector()[0] == 0);
-    const auto value = scanState.outputVectors[0]->getValue<common::list_entry_t>(0);
+float* EmbeddingColumn::getEmbedding(transaction::Transaction* transaction,
+    NodeTableScanState* scanState, common::offset_t offset) const {
+    if (cachedData) {
+        auto [nodeGroupIdx, offsetInGroup] = StorageUtils::getNodeGroupIdxAndOffsetInChunk(offset);
+        KU_ASSERT(nodeGroupIdx < cachedData->columnChunks.size());
+        const auto& listChunk = cachedData->columnChunks[nodeGroupIdx]->cast<ListChunkData>();
+        return &listChunk.getDataColumnChunk()
+                    ->getData<float>()[listChunk.getListStartOffset(offsetInGroup)];
+    }
+    scan(transaction, scanState, offset);
+    KU_ASSERT(scanState->outputVectors.size() == 1 &&
+              scanState->outputVectors[0]->state->getSelVector()[0] == 0);
+    const auto value = scanState->outputVectors[0]->getValue<common::list_entry_t>(0);
     KU_ASSERT(value.size == typeInfo.dimension);
     KU_UNUSED(value);
-    const auto dataVector = common::ListVector::getDataVector(scanState.outputVectors[0]);
+    const auto dataVector = common::ListVector::getDataVector(scanState->outputVectors[0]);
     return reinterpret_cast<float*>(dataVector->getData()) + value.offset;
+}
+
+bool EmbeddingColumn::isNull(transaction::Transaction* transaction, NodeTableScanState* scanState,
+    common::offset_t offset) const {
+    auto [nodeGroupIdx, offsetInGroup] = StorageUtils::getNodeGroupIdxAndOffsetInChunk(offset);
+    if (cachedData) {
+        KU_ASSERT(nodeGroupIdx < cachedData->columnChunks.size());
+        const auto& listChunk = cachedData->columnChunks[nodeGroupIdx]->cast<ListChunkData>();
+        return listChunk.isNull(offsetInGroup);
+    }
+    scanState->outputVectors[0]->setAllNonNull();
+    scan(transaction, scanState, offset);
+    KU_ASSERT(scanState->nodeIDVector->state->getSelVector().getSelSize() == 1);
+    const auto pos = scanState->nodeIDVector->state->getSelVector()[0];
+    return scanState->outputVectors[0]->isNull(pos);
+}
+
+void EmbeddingColumn::scan(transaction::Transaction* transaction, NodeTableScanState* scanState,
+    common::offset_t offset) const {
+    KU_ASSERT(scanState != nullptr);
+    scanState->nodeIDVector->setValue(0, common::internalID_t{offset, nodeTable.getTableID()});
+    scanState->nodeIDVector->state->getSelVectorUnsafe().setToUnfiltered(1);
+    scanState->source = TableScanSource::COMMITTED;
+    scanState->nodeGroupIdx = StorageUtils::getNodeGroupIdx(offset);
+    nodeTable.initScanState(transaction, *scanState);
+    [[maybe_unused]] const auto result = nodeTable.lookup(transaction, *scanState);
 }
 
 namespace {

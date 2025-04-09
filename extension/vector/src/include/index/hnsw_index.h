@@ -84,11 +84,12 @@ public:
 
 protected:
     HNSWIndexConfig config;
+    std::unique_ptr<EmbeddingColumn> embeddings;
 };
 
 struct InMemHNSWLayerInfo {
     common::offset_t numNodes;
-    OnDiskEmbeddings* embeddings;
+    EmbeddingColumn* embeddings;
     MetricType metric;
     // The degree threshold of a node that will start to trigger shrinking during insertions. Thus,
     // it is also the max degree of a node in the graph before shrinking.
@@ -98,7 +99,7 @@ struct InMemHNSWLayerInfo {
     double alpha;
     int64_t efc;
 
-    InMemHNSWLayerInfo(common::offset_t numNodes, OnDiskEmbeddings* embeddings, MetricType metric,
+    InMemHNSWLayerInfo(common::offset_t numNodes, EmbeddingColumn* embeddings, MetricType metric,
         int64_t degreeThresholdToShrink, int64_t maxDegree, double alpha, int64_t efc)
         : numNodes{numNodes}, embeddings{embeddings}, metric{metric},
           degreeThresholdToShrink{degreeThresholdToShrink}, maxDegree{maxDegree}, alpha{alpha},
@@ -116,23 +117,24 @@ public:
     common::offset_t getEntryPoint() const { return entryPoint.load(); }
 
     void insert(transaction::Transaction* transaction, common::offset_t offset,
-        common::offset_t entryPoint_, VisitedState& visited, OnDiskEmbeddingScanState& scanState);
+        common::offset_t entryPoint_, VisitedState& visited,
+        storage::NodeTableScanState& scanState);
     common::offset_t searchNN(transaction::Transaction* transaction, common::offset_t node,
-        common::offset_t entryNode, OnDiskEmbeddingScanState& scanState) const;
-    void finalize(transaction::Transaction* transaction, OnDiskEmbeddingScanState& scanState,
+        common::offset_t entryNode, storage::NodeTableScanState& scanState) const;
+    void finalize(transaction::Transaction* transaction, storage::NodeTableScanState& scanState,
         storage::MemoryManager& mm, common::node_group_idx_t nodeGroupIdx,
         const processor::PartitionerSharedState& partitionerSharedState) const;
 
 private:
     std::vector<NodeWithDistance> searchKNN(transaction::Transaction* transaction,
         const float* queryVector, common::offset_t entryNode, common::length_t k,
-        uint64_t configuredEf, VisitedState& visited, OnDiskEmbeddingScanState& scanState) const;
+        uint64_t configuredEf, VisitedState& visited, storage::NodeTableScanState& scanState) const;
     static void shrinkForNode(transaction::Transaction* transaction,
-        OnDiskEmbeddingScanState& scanState, const InMemHNSWLayerInfo& info, InMemHNSWGraph* graph,
-        common::offset_t nodeOffset, common::length_t numNbrs);
+        storage::NodeTableScanState& scanState, const InMemHNSWLayerInfo& info,
+        InMemHNSWGraph* graph, common::offset_t nodeOffset, common::length_t numNbrs);
 
     void insertRel(transaction::Transaction* transaction, common::offset_t srcNode,
-        common::offset_t dstNode, OnDiskEmbeddingScanState& scanState);
+        common::offset_t dstNode, storage::NodeTableScanState& scanState);
 
 private:
     std::atomic<common::offset_t> entryPoint;
@@ -149,9 +151,9 @@ public:
     common::offset_t getLowerEntryPoint() const override { return lowerLayer->getEntryPoint(); }
 
     // Note that the input is only `offset`, as we assume embeddings are already cached in memory.
-    bool insert(transaction::Transaction* transaction, OnDiskEmbeddingScanState& scanState,
+    bool insert(transaction::Transaction* transaction, storage::NodeTableScanState& scanState,
         common::offset_t offset, VisitedState& upperVisited, VisitedState& lowerVisited);
-    void finalize(transaction::Transaction* transaction, OnDiskEmbeddingScanState& scanState,
+    void finalize(transaction::Transaction* transaction, storage::NodeTableScanState& scanState,
         storage::MemoryManager& mm, common::node_group_idx_t nodeGroupIdx,
         const HNSWIndexPartitionerSharedState& partitionerSharedState);
 
@@ -162,7 +164,6 @@ private:
 
     std::unique_ptr<InMemHNSWLayer> upperLayer;
     std::unique_ptr<InMemHNSWLayer> lowerLayer;
-    std::unique_ptr<OnDiskEmbeddings> embeddings;
 
     common::RandomEngine randomEngine;
 };
@@ -176,7 +177,7 @@ enum class SearchType : uint8_t {
 
 struct HNSWSearchState {
     VisitedState visited;
-    OnDiskEmbeddingScanState embeddingScanState;
+    EmbeddingScanState embeddingScanState;
     uint64_t k;
     QueryHNSWConfig config;
     uint64_t ef;
@@ -220,7 +221,7 @@ public:
         const std::vector<float>& queryVector, HNSWSearchState& searchState) const;
 
     common::offset_t searchNNInUpperLayer(transaction::Transaction* transaction,
-        const float* queryVector, storage::NodeTableScanState& embeddingScanState) const;
+        const float* queryVector, const EmbeddingScanState& embeddingScanState) const;
     std::vector<NodeWithDistance> searchKNNInLowerLayer(transaction::Transaction* transaction,
         const float* queryVector, common::offset_t entryNode, HNSWSearchState& searchState) const;
 
@@ -278,7 +279,6 @@ private:
     std::atomic<common::offset_t> defaultLowerEntryPoint;
     std::unique_ptr<graph::OnDiskGraph> upperGraph;
     std::unique_ptr<graph::OnDiskGraph> lowerGraph;
-    std::unique_ptr<OnDiskEmbeddings> embeddings;
 };
 
 } // namespace vector_extension

@@ -43,7 +43,7 @@ struct CreateInMemHNSWSharedState final : function::SimpleTableFuncSharedState {
 struct CreateInMemHNSWLocalState final : function::TableFuncLocalState {
     VisitedState upperVisited;
     VisitedState lowerVisited;
-    OnDiskEmbeddingScanState embeddingScanState;
+    EmbeddingScanState embeddingScanState;
 
     CreateInMemHNSWLocalState(const transaction::Transaction* transaction,
         storage::MemoryManager* mm, storage::NodeTable& nodeTable, common::column_id_t columnID,
@@ -65,7 +65,7 @@ struct FinalizeHNSWSharedState final : function::SimpleTableFuncSharedState {
 };
 
 struct FinalizeHNSWLocalState final : function::TableFuncLocalState {
-    OnDiskEmbeddingScanState embeddingScanState;
+    EmbeddingScanState embeddingScanState;
 
     FinalizeHNSWLocalState(const transaction::Transaction* transaction, storage::MemoryManager* mm,
         storage::NodeTable& nodeTable, common::column_id_t columnID)

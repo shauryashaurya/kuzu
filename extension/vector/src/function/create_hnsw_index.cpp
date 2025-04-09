@@ -74,10 +74,11 @@ static offset_t createInMemHNSWTableFunc(const TableFuncInput& input, TableFuncO
     }
     const auto& hnswIndex = sharedState->hnswIndex;
     offset_t numNodesInserted = 0;
-    auto localState = input.localState->ptrCast<CreateInMemHNSWLocalState>();
+    const auto localState = input.localState->ptrCast<CreateInMemHNSWLocalState>();
     for (auto i = morsel.startOffset; i < morsel.endOffset; i++) {
         numNodesInserted += hnswIndex->insert(input.context->clientContext->getTransaction(),
-            localState->embeddingScanState, i, localState->upperVisited, localState->lowerVisited);
+            *localState->embeddingScanState.scanState, i, localState->upperVisited,
+            localState->lowerVisited);
     }
     sharedState->numNodesInserted.fetch_add(numNodesInserted);
     return morsel.endOffset - morsel.startOffset;
@@ -251,7 +252,7 @@ static offset_t finalizeHNSWTableFunc(const TableFuncInput& input, TableFuncOutp
         return 0;
     }
     for (auto i = morsel.startOffset; i < morsel.endOffset; i++) {
-        hnswIndex->finalize(context.getTransaction(), localState->embeddingScanState,
+        hnswIndex->finalize(context.getTransaction(), *localState->embeddingScanState.scanState,
             *context.getMemoryManager(), i, *sharedState->partitionerSharedState);
     }
     sharedState->numNodeGroupsFinalized.fetch_add(morsel.endOffset - morsel.startOffset);
@@ -334,7 +335,8 @@ static std::string rewriteCreateHNSWQuery(main::ClientContext& context,
     params += stringFormat("alpha := {}, ", config.alpha);
     params += stringFormat("pu := {}", config.pu);
     auto columnName = hnswBindData->tableEntry->getProperty(hnswBindData->propertyID).getName();
-    // query += stringFormat("CALL _CACHE_ARRAY_COLUMN_LOCALLY('{}', '{}');", tableName, columnName);
+    // query += stringFormat("CALL _CACHE_ARRAY_COLUMN_LOCALLY('{}', '{}');", tableName,
+    // columnName);
     query += stringFormat("CALL _CREATE_HNSW_INDEX('{}', '{}', '{}', {});", tableName, indexName,
         columnName, params);
     query += stringFormat("RETURN 'Index {} has been created.' as result;", indexName);
