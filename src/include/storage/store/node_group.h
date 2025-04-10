@@ -143,7 +143,8 @@ public:
 
     bool lookup(const common::UniqLock& lock, const transaction::Transaction* transaction,
         const TableScanState& state) const;
-    bool lookup(const transaction::Transaction* transaction, const TableScanState& state) const;
+    bool lookup(const transaction::Transaction* transaction, const TableScanState& state,
+        common::offset_t startWritePos = 0) const;
 
     void update(const transaction::Transaction* transaction, common::row_idx_t rowIdxInGroup,
         common::column_id_t columnID, const common::ValueVector& propertyVector);

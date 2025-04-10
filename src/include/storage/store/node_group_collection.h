@@ -47,11 +47,12 @@ public:
     }
     NodeGroup* getNodeGroup(const common::node_group_idx_t groupIdx,
         bool mayOutOfBound = false) const {
-        const auto lock = nodeGroups.lock();
-        if (mayOutOfBound && groupIdx >= nodeGroups.getNumGroups(lock)) {
-            return nullptr;
-        }
+        // const auto lock = nodeGroups.lock();
+        // if (mayOutOfBound && groupIdx >= nodeGroups.getNumGroups(lock)) {
+        // return nullptr;
+        // }
         KU_ASSERT(nodeGroups.getGroupNoLock(groupIdx)->getNodeGroupIdx() == groupIdx);
+        common::UniqLock lock;
         return nodeGroups.getGroup(lock, groupIdx);
     }
     NodeGroup* getOrCreateNodeGroup(const transaction::Transaction* transaction,

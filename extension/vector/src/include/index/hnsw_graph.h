@@ -29,6 +29,9 @@ public:
     float* getEmbedding(transaction::Transaction* transaction,
         storage::NodeTableScanState* scanState, common::offset_t offset) const;
 
+    std::vector<float*> getEmbeddings(transaction::Transaction* transaction,
+        storage::NodeTableScanState* scanState, const std::vector<common::offset_t>& offsets) const;
+
     bool isNull(transaction::Transaction* transaction, storage::NodeTableScanState* scanState,
         common::offset_t offset) const;
 

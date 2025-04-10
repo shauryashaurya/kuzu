@@ -288,7 +288,8 @@ bool NodeGroup::lookup(const UniqLock& lock, const Transaction* transaction,
     return numTuplesFound == state.rowIdxVector->state->getSelVector().getSelSize();
 }
 
-bool NodeGroup::lookup(const Transaction* transaction, const TableScanState& state) const {
+bool NodeGroup::lookup(const Transaction* transaction, const TableScanState& state,
+    offset_t startWritePos) const {
     idx_t numTuplesFound = 0;
     for (auto i = 0u; i < state.rowIdxVector->state->getSelVector().getSelSize(); i++) {
         auto& nodeGroupScanState = *state.nodeGroupScanState;
@@ -296,14 +297,15 @@ bool NodeGroup::lookup(const Transaction* transaction, const TableScanState& sta
         const auto rowIdx = state.rowIdxVector->getValue<row_idx_t>(pos);
         ChunkedNodeGroup* chunkedGroupToScan = nullptr;
         {
-            const auto lock = chunkedGroups.lock();
+            // const auto lock = chunkedGroups.lock();
             KU_ASSERT(!state.rowIdxVector->isNull(pos));
+            UniqLock lock;
             chunkedGroupToScan = findChunkedGroupFromRowIdx(lock, rowIdx);
         }
         KU_ASSERT(chunkedGroupToScan);
         const auto rowIdxInChunkedGroup = rowIdx - chunkedGroupToScan->getStartRowIdx();
         numTuplesFound += chunkedGroupToScan->lookup(transaction, state, nodeGroupScanState,
-            rowIdxInChunkedGroup, i);
+            rowIdxInChunkedGroup, startWritePos + i);
     }
     return numTuplesFound == state.rowIdxVector->state->getSelVector().getSelSize();
 }

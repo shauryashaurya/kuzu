@@ -157,21 +157,23 @@ void InMemHNSWLayer::shrinkForNode(transaction::Transaction* transaction,
     const auto neighbors = graph->getNeighbors(nodeOffset);
     std::vector<NodeWithDistance> nbrs;
     nbrs.reserve(numNbrs);
-    std::vector<float> nbrEmbeddings;
-    nbrEmbeddings.resize(numNbrs * info.embeddings->getDimension());
-    std::unordered_map<common::offset_t, float*> nbrOffsetToVector;
+    std::vector<common::offset_t> nbrOffsets;
+    nbrOffsets.reserve(numNbrs);
     for (auto nbrOffset : neighbors) {
         if (nbrOffset == graph->getInvalidOffset() || nbrs.size() == numNbrs) {
             break;
         }
-        const auto nbrVector = info.embeddings->getEmbedding(transaction, &scanState, nbrOffset);
+        nbrOffsets.emplace_back(nbrOffset);
+    }
+    std::unordered_map<common::offset_t, float*> nbrOffsetToVector;
+    auto vectors = info.embeddings->getEmbeddings(transaction, &scanState, nbrOffsets);
+    auto idx = 0u;
+    for (auto nbrOffset : nbrOffsets) {
+        const auto nbrVector = vectors[idx++];
         const auto dist = HNSWIndexUtils::computeDistance(info.metric, vector, nbrVector,
             info.embeddings->getDimension());
-        std::memcpy(&nbrEmbeddings[nbrs.size() * info.embeddings->getDimension()], nbrVector,
-            info.embeddings->getDimension() * sizeof(float));
         nbrs.emplace_back(nbrOffset, dist);
-        nbrOffsetToVector[nbrOffset] =
-            &nbrEmbeddings[nbrs.size() * info.embeddings->getDimension()];
+        nbrOffsetToVector[nbrOffset] = nbrVector;
     }
     std::ranges::sort(nbrs, [](const NodeWithDistance& l, const NodeWithDistance& r) {
         return l.distance < r.distance;

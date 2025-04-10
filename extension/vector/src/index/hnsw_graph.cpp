@@ -54,6 +54,39 @@ float* EmbeddingColumn::getEmbedding(transaction::Transaction* transaction,
     return reinterpret_cast<float*>(dataVector->getData()) + value.offset;
 }
 
+std::vector<float*> EmbeddingColumn::getEmbeddings(transaction::Transaction* transaction,
+    NodeTableScanState* scanState, const std::vector<common::offset_t>& offsets) const {
+    std::vector<float*> embeddings;
+    embeddings.reserve(offsets.size());
+    if (cachedData) {
+        for (const auto& offset : offsets) {
+            auto [nodeGroupIdx, offsetInGroup] =
+                StorageUtils::getNodeGroupIdxAndOffsetInChunk(offset);
+            KU_ASSERT(nodeGroupIdx < cachedData->columnChunks.size());
+            const auto& listChunk = cachedData->columnChunks[nodeGroupIdx]->cast<ListChunkData>();
+            embeddings.push_back(&listChunk.getDataColumnChunk()
+                    ->getData<float>()[listChunk.getListStartOffset(offsetInGroup)]);
+        }
+    } else {
+        scanState->nodeIDVector->state->getSelVectorUnsafe().setToUnfiltered(offsets.size());
+        for (auto i = 0u; i < offsets.size(); ++i) {
+            scanState->nodeIDVector->setValue(i,
+                common::internalID_t{offsets[i], nodeTable.getTableID()});
+        }
+        scanState->source = TableScanSource::COMMITTED;
+        [[maybe_unused]] const auto result = nodeTable.lookupMultiple(transaction, *scanState);
+        KU_ASSERT(
+            scanState->outputVectors.size() == 1 &&
+            scanState->outputVectors[0]->state->getSelVector().getSelSize() == offsets.size());
+        const auto dataVector = common::ListVector::getDataVector(scanState->outputVectors[0]);
+        for (auto i = 0u; i < offsets.size(); ++i) {
+            const auto val = scanState->outputVectors[0]->getValue<common::list_entry_t>(i);
+            embeddings.push_back(reinterpret_cast<float*>(dataVector->getData() + val.offset));
+        }
+    }
+    return embeddings;
+}
+
 bool EmbeddingColumn::isNull(transaction::Transaction* transaction, NodeTableScanState* scanState,
     common::offset_t offset) const {
     auto [nodeGroupIdx, offsetInGroup] = StorageUtils::getNodeGroupIdxAndOffsetInChunk(offset);

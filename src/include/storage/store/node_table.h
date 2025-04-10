@@ -127,6 +127,7 @@ public:
 
     bool scanInternal(transaction::Transaction* transaction, TableScanState& scanState) override;
     bool lookup(const transaction::Transaction* transaction, const TableScanState& scanState) const;
+    bool lookupMultiple(transaction::Transaction* transaction, TableScanState& scanState) const;
 
     // Return the max node offset during insertions.
     common::offset_t validateUniquenessConstraint(const transaction::Transaction* transaction,

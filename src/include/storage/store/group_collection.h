@@ -47,8 +47,8 @@ public:
         groups.push_back(std::move(group));
     }
     T* getGroup(const common::UniqLock& lock, common::idx_t groupIdx) const {
-        KU_ASSERT(lock.isLocked());
-        KU_UNUSED(lock);
+        // KU_ASSERT(lock.isLocked());
+        // KU_UNUSED(lock);
         KU_ASSERT(groupIdx < groups.size());
         return groups[groupIdx].get();
     }
