@@ -148,9 +148,9 @@ public:
         KU_ASSERT(length <= maxDegree);
         csrLengths[nodeOffset].store(length);
     }
-    // NOLINTNEXTLINE(readability-make-member-function-const): Semantically non-const function.
     // Note: when the incremented csr length hits maxDegree, this function will block until there is
     // a shrink happening.
+    // NOLINTNEXTLINE(readability-make-member-function-const): Semantically non-const function.
     uint16_t incrementCSRLength(common::offset_t nodeOffset) {
         KU_ASSERT(nodeOffset < numNodes);
         while (true) {
