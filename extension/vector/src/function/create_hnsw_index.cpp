@@ -335,8 +335,10 @@ static std::string rewriteCreateHNSWQuery(main::ClientContext& context,
     params += stringFormat("alpha := {}, ", config.alpha);
     params += stringFormat("pu := {}", config.pu);
     auto columnName = hnswBindData->tableEntry->getProperty(hnswBindData->propertyID).getName();
-    // query += stringFormat("CALL _CACHE_ARRAY_COLUMN_LOCALLY('{}', '{}');", tableName,
-    // columnName);
+    if (hnswBindData->config.enableCache) {
+        query +=
+            stringFormat("CALL _CACHE_ARRAY_COLUMN_LOCALLY('{}', '{}');", tableName, columnName);
+    }
     query += stringFormat("CALL _CREATE_HNSW_INDEX('{}', '{}', '{}', {});", tableName, indexName,
         columnName, params);
     query += stringFormat("RETURN 'Index {} has been created.' as result;", indexName);

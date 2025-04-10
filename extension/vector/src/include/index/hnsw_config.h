@@ -65,6 +65,14 @@ struct Efc {
     static void validate(int64_t value);
 };
 
+struct EnableEmbeddingCache {
+    static constexpr const char* NAME = "enable_embedding_cache";
+    static constexpr common::LogicalTypeID TYPE = common::LogicalTypeID::BOOL;
+    static constexpr bool DEFAULT_VALUE = true;
+
+    static void validate(bool) {}
+};
+
 struct Efs {
     static constexpr const char* NAME = "efs";
     static constexpr common::LogicalTypeID TYPE = common::LogicalTypeID::INT64;
@@ -96,6 +104,7 @@ struct HNSWIndexConfig {
     MetricType metric = Metric::DEFAULT_VALUE;
     double alpha = Alpha::DEFAULT_VALUE;
     int64_t efc = Efc::DEFAULT_VALUE;
+    bool enableCache = EnableEmbeddingCache::DEFAULT_VALUE;
 
     HNSWIndexConfig() = default;
 

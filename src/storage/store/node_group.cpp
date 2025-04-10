@@ -299,8 +299,8 @@ bool NodeGroup::lookup(const Transaction* transaction, const TableScanState& sta
         {
             // const auto lock = chunkedGroups.lock();
             KU_ASSERT(!state.rowIdxVector->isNull(pos));
-            UniqLock lock;
-            chunkedGroupToScan = findChunkedGroupFromRowIdx(lock, rowIdx);
+            // UniqLock lock;
+            chunkedGroupToScan = findChunkedGroupFromRowIdx(rowIdx);
         }
         KU_ASSERT(chunkedGroupToScan);
         const auto rowIdxInChunkedGroup = rowIdx - chunkedGroupToScan->getStartRowIdx();
@@ -599,6 +599,15 @@ ChunkedNodeGroup* NodeGroup::findChunkedGroupFromRowIdx(const UniqLock& lock,
         return nullptr;
     }
     return chunkedGroups.getGroup(lock, chunkedGroupIdx);
+}
+
+ChunkedNodeGroup* NodeGroup::findChunkedGroupFromRowIdx(row_idx_t rowIdx) const {
+    const auto [chunkedGroupIdx, rowIdxInChunkedGroup] =
+        findChunkedGroupIdxFromRowIdxNoLock(rowIdx);
+    if (chunkedGroupIdx == INVALID_CHUNKED_GROUP_IDX) {
+        return nullptr;
+    }
+    return chunkedGroups.getGroup(chunkedGroupIdx);
 }
 
 ChunkedNodeGroup* NodeGroup::findChunkedGroupFromRowIdxNoLock(row_idx_t rowIdx) const {

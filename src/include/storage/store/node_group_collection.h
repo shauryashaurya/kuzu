@@ -51,9 +51,8 @@ public:
         // if (mayOutOfBound && groupIdx >= nodeGroups.getNumGroups(lock)) {
         // return nullptr;
         // }
-        KU_ASSERT(nodeGroups.getGroupNoLock(groupIdx)->getNodeGroupIdx() == groupIdx);
-        common::UniqLock lock;
-        return nodeGroups.getGroup(lock, groupIdx);
+        // KU_ASSERT(nodeGroups.getGroupNoLock(groupIdx)->getNodeGroupIdx() == groupIdx);
+        return nodeGroups.getGroup(groupIdx);
     }
     NodeGroup* getOrCreateNodeGroup(const transaction::Transaction* transaction,
         common::node_group_idx_t groupIdx, NodeGroupDataFormat format);

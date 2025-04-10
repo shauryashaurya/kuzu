@@ -337,13 +337,16 @@ bool NodeTable::lookupMultiple(Transaction* transaction, TableScanState& scanSta
     for (auto& outVector : scanState.outputVectors) {
         outVector->resetAuxiliaryBuffer();
     }
+    node_group_idx_t currNodeGroupIdx = INVALID_NODE_GROUP_IDX;
     for (auto i = 0u; i < scanState.nodeIDVector->state->getSelVector().getSelSize(); i++) {
         const auto nodeIDPos = scanState.nodeIDVector->state->getSelVector()[0];
         const auto nodeOffset = scanState.nodeIDVector->readNodeOffset(nodeIDPos);
         const auto [nodeGroupIdx, rowIdxInGroup] =
             StorageUtils::getNodeGroupIdxAndOffsetInChunk(nodeOffset);
-        scanState.nodeGroupIdx = nodeGroupIdx;
-        initScanState(transaction, scanState);
+        if (currNodeGroupIdx != nodeGroupIdx) {
+            scanState.nodeGroupIdx = nodeGroupIdx;
+            initScanState(transaction, scanState);
+        }
         scanState.rowIdxVector->setValue<row_idx_t>(nodeIDPos, rowIdxInGroup);
         scanState.nodeGroup->lookup(transaction, scanState, i);
     }

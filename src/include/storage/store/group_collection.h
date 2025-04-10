@@ -52,6 +52,7 @@ public:
         KU_ASSERT(groupIdx < groups.size());
         return groups[groupIdx].get();
     }
+    T* getGroup(common::idx_t groupIdx) const { return groups[groupIdx].get(); }
     T* getGroupNoLock(common::idx_t groupIdx) const {
         KU_ASSERT(groupIdx < groups.size());
         return groups[groupIdx].get();

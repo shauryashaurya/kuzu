@@ -209,6 +209,7 @@ private:
         common::row_idx_t rowIdx) const;
     ChunkedNodeGroup* findChunkedGroupFromRowIdx(const common::UniqLock& lock,
         common::row_idx_t rowIdx) const;
+    ChunkedNodeGroup* findChunkedGroupFromRowIdx(common::row_idx_t rowIdx) const;
     ChunkedNodeGroup* findChunkedGroupFromRowIdxNoLock(common::row_idx_t rowIdx) const;
 
     std::unique_ptr<ChunkedNodeGroup> checkpointInMemOnly(MemoryManager& memoryManager,
