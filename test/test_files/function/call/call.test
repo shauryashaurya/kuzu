@@ -107,6 +107,9 @@ Binder exception: Upper bound of rel  exceeds maximum: 10.
 354290
 
 -LOG SetGetSparseFrontierThreshold
+-STATEMENT CALL current_setting('sparse_frontier_threshold');
+----1
+1000
 -STATEMENT CALL sparse_frontier_threshold=2;
 ---- ok
 -STATEMENT CALL current_setting('sparse_frontier_threshold');
