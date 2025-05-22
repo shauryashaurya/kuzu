@@ -46,6 +46,7 @@ class RelDeleteExecutor;
 struct NodeTableDeleteInfo;
 struct NodeTableSetInfo;
 struct RelTableSetInfo;
+struct RelBatchInsertInfo;
 struct BatchInsertSharedState;
 struct PartitionerSharedState;
 
@@ -70,12 +71,13 @@ public:
         std::shared_ptr<FactorizedTable> table, uint64_t maxMorselSize,
         physical_op_vector_t children);
 
-    KUZU_API std::unique_ptr<PhysicalOperator> createRelBatchInsertOp(
-        std::shared_ptr<PartitionerSharedState> partitionerSharedState,
-        std::shared_ptr<BatchInsertSharedState> sharedState,
-        const binder::BoundCopyFromInfo& copyFromInfo, planner::Schema* outFSchema,
-        common::RelDataDirection direction, std::vector<common::column_id_t> columnIDs,
-        std::vector<common::LogicalType> columnTypes, uint32_t operatorID);
+    // KUZU_API std::unique_ptr<PhysicalOperator> createRelBatchInsertOp(
+    //     std::unique_ptr<RelBatchInsertInfo> info,
+    //     std::shared_ptr<PartitionerSharedState> partitionerSharedState,
+    //     std::shared_ptr<BatchInsertSharedState> sharedState,
+    //     const binder::BoundCopyFromInfo& copyFromInfo, planner::Schema* outFSchema,
+    //     common::RelDataDirection direction, std::vector<common::column_id_t> columnIDs,
+    //     std::vector<common::LogicalType> columnTypes, uint32_t operatorID);
 
     KUZU_API std::unique_ptr<PhysicalOperator> mapOperator(
         const planner::LogicalOperator* logicalOperator);

@@ -97,8 +97,7 @@ BoundCopyFromInfo Binder::bindCopyNodeFromInfo(std::string tableName,
         bindScanSource(source, parsingOptions, expectedColumnNames, expectedColumnTypes);
     expression_vector warningDataExprs = boundSource->getWarningColumns();
     if (boundSource->type == ScanSourceType::FILE) {
-        auto& source = boundSource->constCast<BoundTableScanSource>();
-        auto bindData = source.info.bindData->constPtrCast<ScanFileBindData>();
+        auto bindData = boundSource->constCast<BoundTableScanSource>().info.bindData->constPtrCast<ScanFileBindData>();
         if (byColumn && bindData->fileScanInfo.fileTypeInfo.fileType != FileType::NPY) {
             throw BinderException(stringFormat("Copy by column with {} file type is not supported.",
                 bindData->fileScanInfo.fileTypeInfo.fileTypeStr));

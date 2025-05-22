@@ -1,7 +1,6 @@
 #pragma once
 
 #include "processor/operator/sink.h"
-#include "processor/result/factorized_table.h"
 #include "storage/store/table.h"
 
 namespace kuzu {
@@ -13,30 +12,20 @@ namespace processor {
 
 struct BatchInsertInfo {
     std::string tableName;
-    catalog::TableCatalogEntry* tableEntry;
-    bool compressionEnabled;
+    catalog::TableCatalogEntry* tableEntry = nullptr;
+    bool compressionEnabled = true;
 
+    std::vector<common::LogicalType> warningColumnTypes;
+    // column types include property and warning
     std::vector<common::LogicalType> columnTypes;
-    // TODO(Guodong): Try to merge the following 3 fields into 2
     std::vector<common::column_id_t> insertColumnIDs;
     std::vector<common::column_id_t> outputDataColumns;
     std::vector<common::column_id_t> warningDataColumns;
 
-    BatchInsertInfo(std::string tableName, catalog::TableCatalogEntry* tableEntry, bool compressionEnabled,
-        std::vector<common::column_id_t> insertColumnIDs,
-        std::vector<common::LogicalType> columnTypes, common::idx_t numWarningDataColumns)
-        : tableName{std::move(tableName)}, tableEntry{tableEntry}, compressionEnabled{compressionEnabled},
-          columnTypes{std::move(columnTypes)}, insertColumnIDs{std::move(insertColumnIDs)} {
-        auto i = 0u;
-        for (; i < this->columnTypes.size() - numWarningDataColumns; ++i) {
-            outputDataColumns.push_back(i);
-        }
-        for (; i < this->columnTypes.size(); ++i) {
-            warningDataColumns.push_back(i);
-        }
-    }
+    BatchInsertInfo(std::string tableName, std::vector<common::LogicalType> warningColumnTypes)
+        : tableName{std::move(tableName)}, warningColumnTypes{std::move(warningColumnTypes)} {}
     BatchInsertInfo(const BatchInsertInfo& other)
-        : tableEntry{other.tableEntry}, compressionEnabled{other.compressionEnabled},
+        : tableEntry{other.tableEntry},
           columnTypes{copyVector(other.columnTypes)}, insertColumnIDs{other.insertColumnIDs},
           outputDataColumns{other.outputDataColumns}, warningDataColumns{other.warningDataColumns} {
     }

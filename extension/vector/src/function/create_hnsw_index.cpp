@@ -15,6 +15,7 @@
 #include "processor/result/factorized_table_util.h"
 #include "storage/storage_manager.h"
 #include "storage/store/node_table.h"
+#include <processor/operator/persistent/rel_batch_insert.h>
 
 using namespace kuzu::common;
 using namespace kuzu::function;
@@ -175,13 +176,18 @@ static std::unique_ptr<PhysicalOperator> getPhysicalPlan(PlanMapper* planMapper,
         columnIDs.push_back(upperRelTableEntry->getColumnID(property.getName()));
     }
     // Create RelBatchInsert and dummy sink operators.
-    binder::BoundCopyFromInfo upperCopyFromInfo(upperRelTableEntry, nullptr, nullptr, {}, {},
-        nullptr);
+    // binder::BoundCopyFromInfo upperCopyFromInfo(upperRelTableEntry, nullptr, nullptr, {}, {},
+    //     nullptr);
     const auto upperBatchInsertSharedState = std::make_shared<BatchInsertSharedState>();
     auto copyRelUpper = planMapper->createRelBatchInsertOp(clientContext,
         partitionerSharedState->upperPartitionerSharedState, upperBatchInsertSharedState,
         upperCopyFromInfo, logicalOp->getSchema(), RelDataDirection::FWD, columnIDs,
         LogicalType::copy(columnTypes), planMapper->getOperatorID());
+
+    auto upperInsertInfo = std::make_unique<RelBatchInsertInfo>(upperCopyFromInfo.tableName, {}, RelDataDirection::FWD);
+    auto upperPrintInfo = std::make_unique<RelBatchInsertPrintInfo>(upperCopyFromInfo.tableName);
+    auto upperProgress = std::make_shared<RelBatchInsertProgressSharedState>();
+
     binder::BoundCopyFromInfo lowerCopyFromInfo(lowerRelTableEntry, nullptr, nullptr, {}, {},
         nullptr);
     lowerCopyFromInfo.tableEntry = lowerRelTableEntry;

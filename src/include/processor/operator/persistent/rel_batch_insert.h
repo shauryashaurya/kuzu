@@ -37,17 +37,13 @@ struct RelBatchInsertProgressSharedState {
 
 struct RelBatchInsertInfo final : BatchInsertInfo {
     common::RelDataDirection direction;
-    uint64_t partitioningIdx;
-    common::column_id_t boundNodeOffsetColumnID;
+    uint64_t partitioningIdx = UINT64_MAX;
+    common::column_id_t boundNodeOffsetColumnID = common::INVALID_COLUMN_ID;
 
-    RelBatchInsertInfo(std::string tableName, catalog::TableCatalogEntry* tableEntry, bool compressionEnabled,
-        common::RelDataDirection direction, uint64_t partitioningIdx,
-        common::column_id_t offsetColumnID, std::vector<common::column_id_t> columnIDs,
-        std::vector<common::LogicalType> columnTypes, common::column_id_t numWarningDataColumns)
-        : BatchInsertInfo{tableName, tableEntry, compressionEnabled, std::move(columnIDs),
-              std::move(columnTypes), numWarningDataColumns},
-          direction{direction}, partitioningIdx{partitioningIdx},
-          boundNodeOffsetColumnID{offsetColumnID} {}
+    RelBatchInsertInfo(std::string tableName, std::vector<common::LogicalType> columnTypes,
+        common::RelDataDirection direction)
+        : BatchInsertInfo{tableName, std::move(columnTypes)},
+          direction{direction} {}
     RelBatchInsertInfo(const RelBatchInsertInfo& other)
         : BatchInsertInfo{other}, direction{other.direction},
           partitioningIdx{other.partitioningIdx},

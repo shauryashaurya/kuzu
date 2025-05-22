@@ -39,12 +39,10 @@ struct NodeBatchInsertInfo final : BatchInsertInfo {
     evaluator::evaluator_vector_t columnEvaluators;
     std::vector<common::ColumnEvaluateType> evaluateTypes;
 
-    NodeBatchInsertInfo(std::string tableName, bool compressionEnabled, std::vector<common::LogicalType> columnTypes,
+    NodeBatchInsertInfo(std::string tableName, std::vector<common::LogicalType> warningDataColumns,
         std::vector<std::unique_ptr<evaluator::ExpressionEvaluator>> columnEvaluators,
-        std::vector<common::ColumnEvaluateType> evaluateTypes,
-        common::column_id_t numWarningDataColumns)
-        : BatchInsertInfo{tableName, nullptr, compressionEnabled, {}, std::move(columnTypes),
-              numWarningDataColumns},
+        std::vector<common::ColumnEvaluateType> evaluateTypes)
+        : BatchInsertInfo{tableName, std::move(warningDataColumns)},
           columnEvaluators{std::move(columnEvaluators)}, evaluateTypes{std::move(evaluateTypes)} {}
 
     NodeBatchInsertInfo(const NodeBatchInsertInfo& other)
@@ -68,8 +66,7 @@ struct NodeBatchInsertSharedState final : BatchInsertSharedState {
     std::unique_ptr<storage::ChunkedNodeGroup> sharedNodeGroup;
 
     NodeBatchInsertSharedState()
-        : BatchInsertSharedState{}, pkColumnID{0},
-          globalIndexBuilder(std::nullopt), tableFuncSharedState{nullptr},
+        : pkColumnID{0}, globalIndexBuilder(std::nullopt), tableFuncSharedState{nullptr},
           sharedNodeGroup{nullptr} {}
 
     void initPKIndex(const ExecutionContext* context);
