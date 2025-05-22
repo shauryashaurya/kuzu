@@ -12,6 +12,7 @@
 #include "storage/storage_manager.h"
 #include "storage/store/node_table.h"
 #include "storage/store/rel_table.h"
+#include "processor/operator/persistent/rel_batch_insert.h"
 
 using namespace kuzu::binder;
 using namespace kuzu::catalog;
@@ -37,13 +38,14 @@ std::unique_ptr<PhysicalOperator> PlanMapper::createRelBatchInsertOp(
             copyFromInfo.columnExprs[copyFromInfo.columnExprs.size() - i]->getDataType().copy());
     }
     auto catalogEntry = copyFromInfo.tableEntry;
-    auto relBatchInsertInfo = std::make_unique<RelBatchInsertInfo>(catalogEntry,
+    auto relBatchInsertInfo = std::make_unique<RelBatchInsertInfo>(copyFromInfo.tableName, catalogEntry,
         clientContext->getStorageManager()->compressionEnabled(), direction, partitioningIdx,
         offsetVectorIdx, std::move(columnIDs), std::move(columnTypes), numWarningDataColumns);
     auto printInfo = std::make_unique<RelBatchInsertPrintInfo>(copyFromInfo.tableName);
-    auto batchInsert = std::make_unique<RelBatchInsert>(copyFromInfo.tableName,
+    auto progress = std::make_shared<RelBatchInsertProgressSharedState>();
+    auto batchInsert = std::make_unique<RelBatchInsert>(
         std::move(relBatchInsertInfo), std::move(partitionerSharedState), std::move(sharedState),
-        operatorID, std::move(printInfo), nullptr);
+        operatorID, std::move(printInfo), progress);
     batchInsert->setDescriptor(std::make_unique<ResultSetDescriptor>(outFSchema));
     return batchInsert;
 }
@@ -79,13 +81,8 @@ std::unique_ptr<PhysicalOperator> PlanMapper::mapCopyNodeFrom(
     auto& copyFrom = logicalOperator->constCast<LogicalCopyFrom>();
     const auto copyFromInfo = copyFrom.getInfo();
     const auto outFSchema = copyFrom.getSchema();
-
     auto prevOperator = mapOperator(copyFrom.getChild(0).get());
-    auto fTable =
-        FactorizedTableUtils::getSingleStringColumnFTable(clientContext->getMemoryManager());
-
-    auto sharedState = std::make_shared<NodeBatchInsertSharedState>(fTable,
-        &storageManager->getWAL(), clientContext->getMemoryManager());
+    auto sharedState = std::make_shared<NodeBatchInsertSharedState>();
     if (prevOperator->getOperatorType() == PhysicalOperatorType::TABLE_FUNCTION_CALL) {
         const auto call = prevOperator->ptrCast<TableFunctionCall>();
         sharedState->tableFuncSharedState = call->getSharedState().get();
@@ -100,13 +97,16 @@ std::unique_ptr<PhysicalOperator> PlanMapper::mapCopyNodeFrom(
     }
     const auto numWarningDataColumns = copyFromInfo->source->getNumWarningDataColumns();
     KU_ASSERT(columnTypes.size() >= numWarningDataColumns);
-    auto info = std::make_unique<NodeBatchInsertInfo>(storageManager->compressionEnabled(),
+    auto info = std::make_unique<NodeBatchInsertInfo>(copyFromInfo->tableName, storageManager->compressionEnabled(),
         std::move(columnTypes), std::move(columnEvaluators), copyFromInfo->columnEvaluateTypes,
         numWarningDataColumns);
 
+    auto fTable =
+        FactorizedTableUtils::getSingleStringColumnFTable(clientContext->getMemoryManager());
+    auto sinkSharedState = std::make_shared<SinkSharedState>(fTable);
     auto tableName = copyFromInfo->tableName;
     auto printInfo = std::make_unique<NodeBatchInsertPrintInfo>(tableName);
-    auto batchInsert = std::make_unique<NodeBatchInsert>(tableName, std::move(info),
+    auto batchInsert = std::make_unique<NodeBatchInsert>(std::move(info), std::move(sinkSharedState),
         std::move(sharedState), std::move(prevOperator), getOperatorID(), std::move(printInfo));
     batchInsert->setDescriptor(std::make_unique<ResultSetDescriptor>(copyFrom.getSchema()));
     return batchInsert;
@@ -158,11 +158,9 @@ physical_op_vector_t PlanMapper::mapCopyRelFrom(const LogicalOperator* logicalOp
     auto partitioner = mapOperator(copyFrom.getChild(0).get());
     KU_ASSERT(partitioner->getOperatorType() == PhysicalOperatorType::PARTITIONER);
     const auto partitionerSharedState = partitioner->ptrCast<Partitioner>()->getSharedState();
-    const auto storageManager = clientContext->getStorageManager();
     auto fTable =
         FactorizedTableUtils::getSingleStringColumnFTable(clientContext->getMemoryManager());
-    const auto batchInsertSharedState = std::make_shared<BatchInsertSharedState>(nullptr, fTable,
-        &storageManager->getWAL(), clientContext->getMemoryManager());
+    const auto batchInsertSharedState = std::make_shared<BatchInsertSharedState>();
     const auto tableEntry = copyFromInfo->tableEntry;
     std::vector<RelDataDirection> directions = {RelDataDirection::FWD, RelDataDirection::BWD};
     if (tableEntry) {

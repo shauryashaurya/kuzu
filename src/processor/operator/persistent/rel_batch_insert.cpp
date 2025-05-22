@@ -56,7 +56,7 @@ void RelBatchInsert::initGlobalStateInternal(ExecutionContext* context) {
         const auto clientContext = context->clientContext;
         const auto catalog = clientContext->getCatalog();
         const auto transaction = clientContext->getTransaction();
-        const auto tableEntry = catalog->getTableCatalogEntry(transaction, tableName);
+        const auto tableEntry = catalog->getTableCatalogEntry(transaction, info->tableName);
         const auto& relTableEntry = tableEntry->constCast<RelTableCatalogEntry>();
 
         sharedState->table = partitionerSharedState->relTable;
@@ -79,7 +79,6 @@ void RelBatchInsert::initGlobalStateInternal(ExecutionContext* context) {
             relBatchInsertInfo->outputDataColumns.size());
         relBatchInsertInfo->columnTypes = std::move(newColumnTypes);
     }
-    progressSharedState = std::make_shared<RelBatchInsertProgressSharedState>();
     progressSharedState->partitionsDone = 0;
     progressSharedState->partitionsTotal =
         partitionerSharedState->numPartitions[relBatchInsertInfo->partitioningIdx];
@@ -274,8 +273,7 @@ void RelBatchInsert::finalizeInternal(ExecutionContext* context) {
 
         auto outputMsg = stringFormat("{} tuples have been copied to the {} table.",
             sharedState->getNumRows(), info->tableEntry->getName());
-        FactorizedTableUtils::appendStringToTable(sharedState->fTable.get(), outputMsg,
-            context->clientContext->getMemoryManager());
+        sinkSharedState->appendString(outputMsg);
 
         const auto warningCount =
             context->clientContext->getWarningContextUnsafe().getWarningCount(context->queryID);
@@ -284,8 +282,7 @@ void RelBatchInsert::finalizeInternal(ExecutionContext* context) {
                 stringFormat("{} warnings encountered during copy. Use 'CALL "
                              "show_warnings() RETURN *' to view the actual warnings. Query ID: {}",
                     warningCount, context->queryID);
-            FactorizedTableUtils::appendStringToTable(sharedState->fTable.get(), warningMsg,
-                context->clientContext->getMemoryManager());
+            sinkSharedState->appendString(warningMsg);
             context->clientContext->getWarningContextUnsafe().defaultPopulateAllWarnings(
                 context->queryID);
         }

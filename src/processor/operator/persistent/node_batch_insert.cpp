@@ -38,7 +38,7 @@ void NodeBatchInsertSharedState::initPKIndex(const ExecutionContext* context) {
 void NodeBatchInsert::initGlobalStateInternal(ExecutionContext* context) {
     auto clientContext = context->clientContext;
     auto tableEntry = clientContext->getCatalog()->getTableCatalogEntry(
-        clientContext->getTransaction(), tableName);
+        clientContext->getTransaction(), info->tableName);
     auto nodeTableEntry = tableEntry->ptrCast<NodeTableCatalogEntry>();
     auto nodeTable = clientContext->getStorageManager()->getTable(nodeTableEntry->getTableID());
     const auto& pkDefinition = nodeTableEntry->getPrimaryKeyDefinition();
@@ -263,8 +263,7 @@ void NodeBatchInsert::finalize(ExecutionContext* context) {
 void NodeBatchInsert::finalizeInternal(ExecutionContext* context) {
     auto outputMsg = stringFormat("{} tuples have been copied to the {} table.",
         sharedState->getNumRows() - sharedState->getNumErroredRows(), info->tableEntry->getName());
-    FactorizedTableUtils::appendStringToTable(sharedState->fTable.get(), outputMsg,
-        context->clientContext->getMemoryManager());
+    sinkSharedState->appendString(outputMsg);
 
     const auto warningCount =
         context->clientContext->getWarningContextUnsafe().getWarningCount(context->queryID);
@@ -273,8 +272,7 @@ void NodeBatchInsert::finalizeInternal(ExecutionContext* context) {
             stringFormat("{} warnings encountered during copy. Use 'CALL "
                          "show_warnings() RETURN *' to view the actual warnings. Query ID: {}",
                 warningCount, context->queryID);
-        FactorizedTableUtils::appendStringToTable(sharedState->fTable.get(), warningMsg,
-            context->clientContext->getMemoryManager());
+        sinkSharedState->appendString(warningMsg);
     }
 }
 

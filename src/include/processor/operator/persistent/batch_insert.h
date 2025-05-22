@@ -12,6 +12,7 @@ class ChunkedNodeGroup;
 namespace processor {
 
 struct BatchInsertInfo {
+    std::string tableName;
     catalog::TableCatalogEntry* tableEntry;
     bool compressionEnabled;
 
@@ -21,10 +22,10 @@ struct BatchInsertInfo {
     std::vector<common::column_id_t> outputDataColumns;
     std::vector<common::column_id_t> warningDataColumns;
 
-    BatchInsertInfo(catalog::TableCatalogEntry* tableEntry, bool compressionEnabled,
+    BatchInsertInfo(std::string tableName, catalog::TableCatalogEntry* tableEntry, bool compressionEnabled,
         std::vector<common::column_id_t> insertColumnIDs,
         std::vector<common::LogicalType> columnTypes, common::idx_t numWarningDataColumns)
-        : tableEntry{tableEntry}, compressionEnabled{compressionEnabled},
+        : tableName{std::move(tableName)}, tableEntry{tableEntry}, compressionEnabled{compressionEnabled},
           columnTypes{std::move(columnTypes)}, insertColumnIDs{std::move(insertColumnIDs)} {
         auto i = 0u;
         for (; i < this->columnTypes.size() - numWarningDataColumns; ++i) {
@@ -59,23 +60,12 @@ struct KUZU_API BatchInsertSharedState {
     std::shared_ptr<common::row_idx_t> numErroredRows;
 
     storage::Table* table;
-    std::shared_ptr<FactorizedTable> fTable;
-    storage::WAL* wal;
-    storage::MemoryManager* mm;
 
-    BatchInsertSharedState(storage::Table* table, std::shared_ptr<FactorizedTable> fTable,
-        storage::WAL* wal, storage::MemoryManager* mm)
-        : numRows{0}, numErroredRows(std::make_shared<common::row_idx_t>(0)), table{table},
-          fTable{std::move(fTable)}, wal{wal}, mm{mm} {};
+    BatchInsertSharedState()
+        : numRows{0}, numErroredRows(std::make_shared<common::row_idx_t>(0)), table{nullptr} {}
     BatchInsertSharedState(const BatchInsertSharedState& other) = delete;
 
     virtual ~BatchInsertSharedState() = default;
-
-    std::unique_ptr<BatchInsertSharedState> copy() const {
-        auto result = std::make_unique<BatchInsertSharedState>(table, fTable, wal, mm);
-        result->numRows.store(numRows.load());
-        return result;
-    }
 
     void incrementNumRows(common::row_idx_t numRowsToIncrement) {
         numRows.fetch_add(numRowsToIncrement);
@@ -107,20 +97,17 @@ class BatchInsert : public Sink {
     static constexpr PhysicalOperatorType type_ = PhysicalOperatorType::BATCH_INSERT;
 
 public:
-    BatchInsert(std::string tableName, std::unique_ptr<BatchInsertInfo> info,
-        std::shared_ptr<BatchInsertSharedState> sharedState, uint32_t id,
+    BatchInsert(std::unique_ptr<BatchInsertInfo> info, std::shared_ptr<SinkSharedState> sinkSharedState,
+        std::shared_ptr<BatchInsertSharedState> sharedState, physical_op_id id,
         std::unique_ptr<OPPrintInfo> printInfo)
-        : Sink{type_, id, std::move(printInfo)}, tableName{std::move(tableName)},
+        : Sink{type_, id, std::move(printInfo)},
           info{std::move(info)}, sharedState{std::move(sharedState)} {}
 
     ~BatchInsert() override = default;
 
     std::unique_ptr<PhysicalOperator> copy() override = 0;
 
-    std::shared_ptr<BatchInsertSharedState> getSharedState() const { return sharedState; }
-
 protected:
-    std::string tableName;
     std::unique_ptr<BatchInsertInfo> info;
     std::shared_ptr<BatchInsertSharedState> sharedState;
     std::unique_ptr<BatchInsertLocalState> localState;

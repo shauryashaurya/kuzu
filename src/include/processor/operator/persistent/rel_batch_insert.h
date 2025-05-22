@@ -40,11 +40,11 @@ struct RelBatchInsertInfo final : BatchInsertInfo {
     uint64_t partitioningIdx;
     common::column_id_t boundNodeOffsetColumnID;
 
-    RelBatchInsertInfo(catalog::TableCatalogEntry* tableEntry, bool compressionEnabled,
+    RelBatchInsertInfo(std::string tableName, catalog::TableCatalogEntry* tableEntry, bool compressionEnabled,
         common::RelDataDirection direction, uint64_t partitioningIdx,
         common::column_id_t offsetColumnID, std::vector<common::column_id_t> columnIDs,
         std::vector<common::LogicalType> columnTypes, common::column_id_t numWarningDataColumns)
-        : BatchInsertInfo{tableEntry, compressionEnabled, std::move(columnIDs),
+        : BatchInsertInfo{tableName, tableEntry, compressionEnabled, std::move(columnIDs),
               std::move(columnTypes), numWarningDataColumns},
           direction{direction}, partitioningIdx{partitioningIdx},
           boundNodeOffsetColumnID{offsetColumnID} {}
@@ -65,12 +65,12 @@ struct RelBatchInsertLocalState final : BatchInsertLocalState {
 
 class RelBatchInsert final : public BatchInsert {
 public:
-    RelBatchInsert(std::string tableName, std::unique_ptr<BatchInsertInfo> info,
+    RelBatchInsert(std::unique_ptr<BatchInsertInfo> info, std::shared_ptr<SinkSharedState> sinkSharedState,
         std::shared_ptr<PartitionerSharedState> partitionerSharedState,
-        std::shared_ptr<BatchInsertSharedState> sharedState, uint32_t id,
+        std::shared_ptr<BatchInsertSharedState> sharedState, physical_op_id id,
         std::unique_ptr<OPPrintInfo> printInfo,
         std::shared_ptr<RelBatchInsertProgressSharedState> progressSharedState)
-        : BatchInsert{std::move(tableName), std::move(info), std::move(sharedState), id,
+        : BatchInsert{std::move(info), std::move(sinkSharedState),std::move(sharedState), id,
               std::move(printInfo)},
           partitionerSharedState{std::move(partitionerSharedState)},
           progressSharedState{std::move(progressSharedState)} {}
@@ -84,7 +84,7 @@ public:
     void finalizeInternal(ExecutionContext* context) override;
 
     std::unique_ptr<PhysicalOperator> copy() override {
-        return std::make_unique<RelBatchInsert>(tableName, info->copy(), partitionerSharedState,
+        return std::make_unique<RelBatchInsert>(info->copy(), sinkSharedState, partitionerSharedState,
             sharedState, id, printInfo->copy(), progressSharedState);
     }
 

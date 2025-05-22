@@ -38,21 +38,15 @@ FactorizedTableSchema FactorizedTableUtils::createFlatTableSchema(
     return tableSchema;
 }
 
-void FactorizedTableUtils::appendStringToTable(FactorizedTable* factorizedTable,
-    std::string& outputMsg, MemoryManager* memoryManager) {
-    auto outputMsgVector = std::make_shared<ValueVector>(LogicalTypeID::STRING, memoryManager);
-    outputMsgVector->state = DataChunkState::getSingleValueDataChunkState();
-    auto outputKUStr = ku_string_t();
-    outputKUStr.overflowPtr =
-        reinterpret_cast<uint64_t>(StringVector::getInMemOverflowBuffer(outputMsgVector.get())
-                                       ->allocateSpace(outputMsg.length()));
-    outputKUStr.set(outputMsg);
-    outputMsgVector->setValue(0, outputKUStr);
-    factorizedTable->append(std::vector<ValueVector*>{outputMsgVector.get()});
+void FactorizedTableUtils::appendStringToTable(FactorizedTable* table,
+    const std::string& outputMsg, MemoryManager* memoryManager) {
+    auto vector = ValueVector(LogicalTypeID::STRING, memoryManager);
+    StringVector::addString(&vector, 0, outputMsg);
+    table->append(std::vector<ValueVector*>{&vector});
 }
 
 std::shared_ptr<FactorizedTable> FactorizedTableUtils::getFactorizedTableForOutputMsg(
-    std::string& outputMsg, MemoryManager* memoryManager) {
+    const std::string& outputMsg, MemoryManager* memoryManager) {
     auto table = getSingleStringColumnFTable(memoryManager);
     appendStringToTable(table.get(), outputMsg, memoryManager);
     return table;

@@ -14,11 +14,11 @@ public:
         sortedKeyBlocks = std::make_unique<std::queue<std::shared_ptr<MergedKeyBlocks>>>();
     }
 
-    inline uint64_t getNumBytesPerTuple() const { return numBytesPerTuple; }
+    uint64_t getNumBytesPerTuple() const { return numBytesPerTuple; }
 
-    inline std::vector<StrKeyColInfo>& getStrKeyColInfo() { return strKeyColsInfo; }
+    std::vector<StrKeyColInfo>& getStrKeyColInfo() { return strKeyColsInfo; }
 
-    inline std::queue<std::shared_ptr<MergedKeyBlocks>>* getSortedKeyBlocks() {
+    std::queue<std::shared_ptr<MergedKeyBlocks>>* getSortedKeyBlocks() {
         return sortedKeyBlocks.get();
     }
 
@@ -33,7 +33,7 @@ public:
 
     std::vector<FactorizedTable*> getPayloadTables() const;
 
-    inline MergedKeyBlocks* getMergedKeyBlock() const {
+    MergedKeyBlocks* getMergedKeyBlock() const {
         return sortedKeyBlocks->empty() ? nullptr : sortedKeyBlocks->front().get();
     }
 

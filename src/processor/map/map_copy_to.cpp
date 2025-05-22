@@ -35,8 +35,7 @@ std::unique_ptr<PhysicalOperator> PlanMapper::mapCopyTo(const LogicalOperator* l
     auto copyTo = std::make_unique<CopyTo>(std::move(info), std::move(sharedState),
         std::move(prevOperator), getOperatorID(), std::move(printInfo));
     copyTo->setDescriptor(std::make_unique<ResultSetDescriptor>(childSchema));
-    return createEmptyFTableScan(FactorizedTable::EmptyTable(clientContext->getMemoryManager()), 0,
-        std::move(copyTo));
+    return copyTo;
 }
 
 } // namespace processor

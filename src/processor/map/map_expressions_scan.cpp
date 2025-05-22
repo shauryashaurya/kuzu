@@ -1,7 +1,7 @@
 #include "common/system_config.h"
 #include "planner/operator/logical_accumulate.h"
 #include "planner/operator/scan/logical_expressions_scan.h"
-#include "processor/operator/result_collector.h"
+#include "processor/operator/sink.h"
 #include "processor/plan_mapper.h"
 
 using namespace kuzu::common;
@@ -31,8 +31,7 @@ std::unique_ptr<PhysicalOperator> PlanMapper::mapExpressionsScan(
     auto physicalOp = logicalOpToPhysicalOpMap.at(outerAccumulate);
     KU_ASSERT(physicalOp->getOperatorType() == PhysicalOperatorType::TABLE_FUNCTION_CALL);
     KU_ASSERT(physicalOp->getChild(0)->getOperatorType() == PhysicalOperatorType::RESULT_COLLECTOR);
-    auto resultCollector = physicalOp->getChild(0)->ptrCast<ResultCollector>();
-    auto table = resultCollector->getResultFactorizedTable();
+    auto table = physicalOp->getChild(0)->ptrCast<Sink>()->getResultTable();
     return createFTableScan(expressionsToScan, colIndicesToScan, schema, table,
         DEFAULT_VECTOR_CAPACITY /* maxMorselSize */);
 }

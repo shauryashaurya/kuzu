@@ -39,11 +39,11 @@ struct NodeBatchInsertInfo final : BatchInsertInfo {
     evaluator::evaluator_vector_t columnEvaluators;
     std::vector<common::ColumnEvaluateType> evaluateTypes;
 
-    NodeBatchInsertInfo(bool compressionEnabled, std::vector<common::LogicalType> columnTypes,
+    NodeBatchInsertInfo(std::string tableName, bool compressionEnabled, std::vector<common::LogicalType> columnTypes,
         std::vector<std::unique_ptr<evaluator::ExpressionEvaluator>> columnEvaluators,
         std::vector<common::ColumnEvaluateType> evaluateTypes,
         common::column_id_t numWarningDataColumns)
-        : BatchInsertInfo{nullptr, compressionEnabled, {}, std::move(columnTypes),
+        : BatchInsertInfo{tableName, nullptr, compressionEnabled, {}, std::move(columnTypes),
               numWarningDataColumns},
           columnEvaluators{std::move(columnEvaluators)}, evaluateTypes{std::move(evaluateTypes)} {}
 
@@ -63,16 +63,12 @@ struct NodeBatchInsertSharedState final : BatchInsertSharedState {
     std::optional<IndexBuilder> globalIndexBuilder;
 
     function::TableFuncSharedState* tableFuncSharedState;
-
-    std::vector<common::column_id_t> mainDataColumns;
-
     // The sharedNodeGroup is to accumulate left data within local node groups in NodeBatchInsert
     // ops.
     std::unique_ptr<storage::ChunkedNodeGroup> sharedNodeGroup;
 
-    NodeBatchInsertSharedState(std::shared_ptr<FactorizedTable> fTable, storage::WAL* wal,
-        storage::MemoryManager* mm)
-        : BatchInsertSharedState{nullptr, std::move(fTable), wal, mm}, pkColumnID{0},
+    NodeBatchInsertSharedState()
+        : BatchInsertSharedState{}, pkColumnID{0},
           globalIndexBuilder(std::nullopt), tableFuncSharedState{nullptr},
           sharedNodeGroup{nullptr} {}
 
@@ -95,11 +91,11 @@ struct NodeBatchInsertLocalState final : BatchInsertLocalState {
 
 class NodeBatchInsert final : public BatchInsert {
 public:
-    NodeBatchInsert(std::string tableName, std::unique_ptr<BatchInsertInfo> info,
+    NodeBatchInsert(std::unique_ptr<BatchInsertInfo> info, std::shared_ptr<SinkSharedState> sinkSharedState,
         std::shared_ptr<BatchInsertSharedState> sharedState,
-        std::unique_ptr<PhysicalOperator> child, uint32_t id,
+        std::unique_ptr<PhysicalOperator> child, physical_op_id id,
         std::unique_ptr<OPPrintInfo> printInfo)
-        : BatchInsert{std::move(tableName), std::move(info), std::move(sharedState), id,
+        : BatchInsert{std::move(info), std::move(sinkSharedState), std::move(sharedState), id,
               std::move(printInfo)} {
         children.push_back(std::move(child));
     }
@@ -114,7 +110,7 @@ public:
     void finalizeInternal(ExecutionContext* context) override;
 
     std::unique_ptr<PhysicalOperator> copy() override {
-        return std::make_unique<NodeBatchInsert>(tableName, info->copy(), sharedState,
+        return std::make_unique<NodeBatchInsert>(info->copy(), sinkSharedState, sharedState,
             children[0]->copy(), id, printInfo->copy());
     }
 

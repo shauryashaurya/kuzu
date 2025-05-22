@@ -17,19 +17,21 @@ QueryProcessor::QueryProcessor(uint64_t numThreads) {
 
 std::shared_ptr<FactorizedTable> QueryProcessor::execute(PhysicalPlan* physicalPlan,
     ExecutionContext* context) {
-    auto lastOperator = physicalPlan->lastOperator.get();
-    auto resultCollector = ku_dynamic_cast<ResultCollector*>(lastOperator);
+    auto sink = physicalPlan->lastOperator->ptrCast<Sink>();
     // The root pipeline(task) consists of operators and its prevOperator only, because we
     // expect to have linear plans. For binary operators, e.g., HashJoin, we  keep probe and its
     // prevOperator in the same pipeline, and decompose build and its prevOperator into another
     // one.
-    auto task = std::make_shared<ProcessorTask>(resultCollector, context);
-    decomposePlanIntoTask(lastOperator->getChild(0), task.get(), context);
+    auto task = std::make_shared<ProcessorTask>(sink, context);
+    decomposePlanIntoTask(sink->getChild(0), task.get(), context);
     initTask(task.get());
     context->clientContext->getProgressBar()->startProgress(context->queryID);
     taskScheduler->scheduleTaskAndWaitOrError(task, context);
     context->clientContext->getProgressBar()->endProgress(context->queryID);
-    return resultCollector->getResultFactorizedTable();
+    if (sink->hasResultTable()) {
+        return sink->getResultTable();
+    }
+    return FactorizedTable::EmptyTable(context->clientContext->getMemoryManager());
 }
 
 void QueryProcessor::decomposePlanIntoTask(PhysicalOperator* op, Task* task,

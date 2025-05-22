@@ -9,7 +9,6 @@ namespace kuzu {
 namespace common {
 
 struct CSVOption {
-    // TODO(Xiyang): Add newline character option and delimiter can be a string.
     char escapeChar;
     char delimiter;
     char quoteChar;

@@ -52,7 +52,7 @@ class CopyTo final : public Sink {
 
 public:
     CopyTo(CopyToInfo info, std::shared_ptr<function::ExportFuncSharedState> sharedState,
-        std::unique_ptr<PhysicalOperator> child, uint32_t id,
+        std::unique_ptr<PhysicalOperator> child, physical_op_id id,
         std::unique_ptr<OPPrintInfo> printInfo)
         : Sink{type_, std::move(child), id, std::move(printInfo)}, info{std::move(info)},
           sharedState{std::move(sharedState)} {}

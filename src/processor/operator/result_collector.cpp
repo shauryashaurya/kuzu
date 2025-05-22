@@ -51,7 +51,7 @@ void ResultCollector::executeInternal(ExecutionContext* context) {
     }
     if (!payloadVectors.empty()) {
         metrics->numOutputTuple.increase(localTable->getTotalNumFlatTuples());
-        sharedState->mergeLocalTable(*localTable);
+        sinkSharedState->mergeLocalTable(*localTable);
     }
 }
 
@@ -63,7 +63,7 @@ void ResultCollector::finalizeInternal(ExecutionContext* context) {
         // We should remove currIdx completely as some of the code still relies on currIdx = -1 to
         // check if the state if unFlat or not. This should no longer be necessary.
         // TODO(Ziyi): add an interface in factorized table
-        auto table = sharedState->getTable();
+        auto table = sinkSharedState->getTable();
         auto tableSchema = table->getTableSchema();
         for (auto i = 0u; i < payloadVectors.size(); ++i) {
             auto columnSchema = tableSchema->getColumn(i);

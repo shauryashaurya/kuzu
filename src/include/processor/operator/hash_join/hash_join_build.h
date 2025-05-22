@@ -47,7 +47,7 @@ public:
 
     void mergeLocalHashTable(JoinHashTable& localHashTable);
 
-    inline JoinHashTable* getHashTable() { return hashTable.get(); }
+    JoinHashTable* getHashTable() { return hashTable.get(); }
 
 protected:
     std::mutex mtx;

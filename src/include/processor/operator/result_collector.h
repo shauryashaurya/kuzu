@@ -10,23 +10,6 @@
 namespace kuzu {
 namespace processor {
 
-class ResultCollectorSharedState {
-public:
-    explicit ResultCollectorSharedState(std::shared_ptr<FactorizedTable> table)
-        : table{std::move(table)} {}
-
-    void mergeLocalTable(FactorizedTable& localTable) {
-        std::unique_lock lck{mtx};
-        table->merge(localTable);
-    }
-
-    std::shared_ptr<FactorizedTable> getTable() { return table; }
-
-private:
-    std::mutex mtx;
-    std::shared_ptr<FactorizedTable> table;
-};
-
 struct ResultCollectorInfo {
     common::AccumulateType accumulateType;
     FactorizedTableSchema tableSchema;
@@ -66,21 +49,17 @@ class ResultCollector final : public Sink {
     static constexpr PhysicalOperatorType type_ = PhysicalOperatorType::RESULT_COLLECTOR;
 
 public:
-    ResultCollector(ResultCollectorInfo info,
-        std::shared_ptr<ResultCollectorSharedState> sharedState,
+    ResultCollector(ResultCollectorInfo info, std::shared_ptr<SinkSharedState> sinkSharedState,
         std::unique_ptr<PhysicalOperator> child, uint32_t id,
         std::unique_ptr<OPPrintInfo> printInfo)
-        : Sink{type_, std::move(child), id, std::move(printInfo)}, info{std::move(info)},
-          sharedState{std::move(sharedState)} {}
+        : Sink{type_, std::move(sinkSharedState), std::move(child), id, std::move(printInfo)}, info{std::move(info)} {}
 
     void executeInternal(ExecutionContext* context) override;
 
     void finalizeInternal(ExecutionContext* context) override;
 
-    std::shared_ptr<FactorizedTable> getResultFactorizedTable() { return sharedState->getTable(); }
-
     std::unique_ptr<PhysicalOperator> copy() override {
-        return std::make_unique<ResultCollector>(info.copy(), sharedState, children[0]->copy(), id,
+        return std::make_unique<ResultCollector>(info.copy(), sinkSharedState, children[0]->copy(), id,
             printInfo->copy());
     }
 
@@ -91,10 +70,8 @@ private:
 
 private:
     ResultCollectorInfo info;
-    std::shared_ptr<ResultCollectorSharedState> sharedState;
     std::vector<common::ValueVector*> payloadVectors;
     std::vector<common::ValueVector*> payloadAndMarkVectors;
-
     std::unique_ptr<common::ValueVector> markVector;
     std::unique_ptr<FactorizedTable> localTable;
 };

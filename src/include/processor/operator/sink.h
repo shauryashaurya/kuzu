@@ -3,19 +3,42 @@
 #include "common/exception/internal.h"
 #include "common/metric.h"
 #include "processor/operator/physical_operator.h"
+#include "processor/result/factorized_table.h"
 #include "processor/result/result_set_descriptor.h"
 
 namespace kuzu {
 namespace processor {
 
+class SinkSharedState {
+public:
+    explicit SinkSharedState(std::shared_ptr<FactorizedTable> table)
+            : table{std::move(table)} {}
+
+    void mergeLocalTable(FactorizedTable& localTable);
+
+    void appendString(const std::string& str);
+
+    std::shared_ptr<FactorizedTable> getTable() { return table; }
+
+private:
+    std::mutex mtx;
+    std::shared_ptr<FactorizedTable> table;
+};
+
 class KUZU_API Sink : public PhysicalOperator {
 public:
+    // Leaf sink operator.
     Sink(PhysicalOperatorType operatorType, physical_op_id id,
         std::unique_ptr<OPPrintInfo> printInfo)
         : PhysicalOperator{operatorType, id, std::move(printInfo)} {}
+    // Unary sink operator.
     Sink(PhysicalOperatorType operatorType, std::unique_ptr<PhysicalOperator> child,
         physical_op_id id, std::unique_ptr<OPPrintInfo> printInfo)
         : PhysicalOperator{operatorType, std::move(child), id, std::move(printInfo)} {}
+    // Unary sink operator with result table.
+    Sink(PhysicalOperatorType operatorType, std::shared_ptr<SinkSharedState> sinkSharedState, std::unique_ptr<PhysicalOperator> child,
+        physical_op_id id, std::unique_ptr<OPPrintInfo> printInfo)
+        : PhysicalOperator{operatorType, std::move(child), id, std::move(printInfo)}, sinkSharedState{std::move(sinkSharedState)} {}
 
     bool isSink() const override { return true; }
 
@@ -25,12 +48,15 @@ public:
     }
     std::unique_ptr<ResultSet> getResultSet(storage::MemoryManager* memoryManager);
 
-    void execute(ResultSet* resultSet, ExecutionContext* context) {
-        initLocalState(resultSet, context);
-        metrics->executionTime.start();
-        executeInternal(context);
-        metrics->executionTime.stop();
+    bool hasResultTable() const {
+        return sinkSharedState != nullptr;
     }
+    std::shared_ptr<FactorizedTable> getResultTable() const {
+        KU_ASSERT(hasResultTable);
+        return sinkSharedState->getTable();
+    }
+
+    void execute(ResultSet* resultSet, ExecutionContext* context);
 
     std::unique_ptr<PhysicalOperator> copy() override = 0;
 
@@ -44,6 +70,7 @@ protected:
 
 protected:
     std::unique_ptr<ResultSetDescriptor> resultSetDescriptor;
+    std::shared_ptr<SinkSharedState> sinkSharedState;
 };
 
 class KUZU_API DummySink final : public Sink {

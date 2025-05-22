@@ -177,8 +177,7 @@ static std::unique_ptr<PhysicalOperator> getPhysicalPlan(PlanMapper* planMapper,
     // Create RelBatchInsert and dummy sink operators.
     binder::BoundCopyFromInfo upperCopyFromInfo(upperRelTableEntry, nullptr, nullptr, {}, {},
         nullptr);
-    const auto upperBatchInsertSharedState = std::make_shared<BatchInsertSharedState>(upperRelTable,
-        fTable, &storageManager->getWAL(), clientContext->getMemoryManager());
+    const auto upperBatchInsertSharedState = std::make_shared<BatchInsertSharedState>();
     auto copyRelUpper = planMapper->createRelBatchInsertOp(clientContext,
         partitionerSharedState->upperPartitionerSharedState, upperBatchInsertSharedState,
         upperCopyFromInfo, logicalOp->getSchema(), RelDataDirection::FWD, columnIDs,
@@ -186,8 +185,7 @@ static std::unique_ptr<PhysicalOperator> getPhysicalPlan(PlanMapper* planMapper,
     binder::BoundCopyFromInfo lowerCopyFromInfo(lowerRelTableEntry, nullptr, nullptr, {}, {},
         nullptr);
     lowerCopyFromInfo.tableEntry = lowerRelTableEntry;
-    const auto lowerBatchInsertSharedState = std::make_shared<BatchInsertSharedState>(lowerRelTable,
-        fTable, &storageManager->getWAL(), clientContext->getMemoryManager());
+    const auto lowerBatchInsertSharedState = std::make_shared<BatchInsertSharedState>();
     auto copyRelLower = planMapper->createRelBatchInsertOp(clientContext,
         partitionerSharedState->lowerPartitionerSharedState, lowerBatchInsertSharedState,
         lowerCopyFromInfo, logicalOp->getSchema(), RelDataDirection::FWD, columnIDs,
