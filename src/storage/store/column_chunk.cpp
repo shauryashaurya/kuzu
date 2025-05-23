@@ -5,12 +5,15 @@
 #include <stdexcept>
 
 #include "common/serializer/deserializer.h"
+#include "common/types/types.h"
 #include "common/vector/value_vector.h"
 #include "main/client_context.h"
 #include "storage/file_handle.h"
 #include "storage/storage_utils.h"
 #include "storage/store/column.h"
 #include "storage/store/column_chunk_data.h"
+#include "storage/store/column_chunk_metadata.h"
+#include "storage/store/segment.h"
 #include "transaction/transaction.h"
 
 using namespace kuzu::common;
@@ -20,27 +23,39 @@ namespace kuzu {
 namespace storage {
 
 ColumnChunk::ColumnChunk(MemoryManager& memoryManager, LogicalType&& dataType, uint64_t capacity,
-    bool enableCompression, ResidencyState residencyState, bool initializeToZero)
+    bool enableCompression, ResidencyState residencyState, bool hasNullChunk, bool initializeToZero)
     : enableCompression{enableCompression} {
-    data.push_back(ColumnChunkFactory::createColumnChunkData(memoryManager, std::move(dataType),
-        enableCompression, capacity, residencyState, true, initializeToZero));
+    data.push_back(SegmentFactory::createSegment(memoryManager, std::move(dataType),
+        enableCompression, capacity, residencyState, initializeToZero));
+    if (hasNullChunk) {
+        nullChunk = std::make_unique<ColumnChunk>(memoryManager, LogicalType::BOOL(),
+            enableCompression, capacity, residencyState, initializeToZero);
+    }
     KU_ASSERT(residencyState != ResidencyState::ON_DISK);
 }
 
 ColumnChunk::ColumnChunk(MemoryManager& memoryManager, LogicalType&& dataType,
-    bool enableCompression, ColumnChunkMetadata metadata)
+    bool enableCompression, ColumnChunkMetadata metadata,
+    std::optional<ColumnChunkMetadata> nullMetadata)
     : enableCompression{enableCompression} {
-    data.push_back(ColumnChunkFactory::createColumnChunkData(memoryManager, std::move(dataType),
-        enableCompression, metadata, true, true));
+    data.push_back(SegmentFactory::createSegment(memoryManager, std::move(dataType),
+        enableCompression, metadata, true));
+    if (nullMetadata) {
+        nullChunk = std::make_unique<ColumnChunk>(memoryManager, LogicalType::BOOL(),
+            enableCompression, *nullMetadata);
+    }
 }
 
-ColumnChunk::ColumnChunk(bool enableCompression, std::unique_ptr<ColumnChunkData> data)
-    : enableCompression{enableCompression}, data{} {
+ColumnChunk::ColumnChunk(bool enableCompression, std::unique_ptr<Segment> segment,
+    std::unique_ptr<ColumnChunk> nullChunk)
+    : enableCompression{enableCompression}, data{}, nullChunk{std::move(nullChunk)} {
     this->data.push_back(std::move(data));
 }
-ColumnChunk::ColumnChunk(bool enableCompression,
-    std::vector<std::unique_ptr<ColumnChunkData>> segments)
-    : enableCompression{enableCompression}, data{std::move(segments)} {}
+
+ColumnChunk::ColumnChunk(bool enableCompression, std::vector<std::unique_ptr<Segment>> segments,
+    std::unique_ptr<ColumnChunk> nullChunk)
+    : enableCompression{enableCompression}, data{std::move(segments)},
+      nullChunk{std::move(nullChunk)} {}
 
 void ColumnChunk::initializeScanState(ChunkState& state, const Column* column) const {
     data.front()->initializeScanState(state, column);
@@ -270,9 +285,9 @@ std::unique_ptr<ColumnChunk> ColumnChunk::deserialize(MemoryManager& memoryManag
     deSer.deserializeValue<bool>(enableCompression);
     uint64_t numSegments = 0;
     deSer.deserializeValue(numSegments);
-    std::vector<std::unique_ptr<ColumnChunkData>> segments;
+    std::vector<std::unique_ptr<Segment>> segments;
     for (uint64_t i = 0; i < numSegments; i++) {
-        segments.push_back(ColumnChunkData::deserialize(memoryManager, deSer));
+        segments.push_back(Segment::deserialize(memoryManager, deSer));
     }
     return std::make_unique<ColumnChunk>(enableCompression, std::move(segments));
 }

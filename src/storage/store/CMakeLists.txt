@@ -23,6 +23,7 @@ add_library(kuzu_storage_store
         null_column.cpp
         rel_table.cpp
         rel_table_data.cpp
+        segment.cpp
         string_chunk_data.cpp
         string_column.cpp
         struct_chunk_data.cpp

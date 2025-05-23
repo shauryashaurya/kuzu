@@ -4,7 +4,7 @@
 #include <cstdint>
 
 #include "common/types/types.h"
-#include "storage/store/column_chunk_data.h"
+#include "storage/store/segment.h"
 #include "storage/store/update_info.h"
 
 namespace kuzu {
@@ -13,17 +13,17 @@ class MemoryManager;
 class Column;
 
 struct ChunkCheckpointState {
-    std::unique_ptr<ColumnChunkData> chunkData;
+    std::unique_ptr<Segment> segment;
     common::row_idx_t startRow;
     common::length_t numRows;
 
-    ChunkCheckpointState(std::unique_ptr<ColumnChunkData> chunkData, common::row_idx_t startRow,
+    ChunkCheckpointState(std::unique_ptr<Segment> segment, common::row_idx_t startRow,
         common::length_t numRows)
-        : chunkData{std::move(chunkData)}, startRow{startRow}, numRows{numRows} {}
+        : segment{std::move(segment)}, startRow{startRow}, numRows{numRows} {}
 };
 
 struct SegmentCheckpointState {
-    const ColumnChunkData& chunkData;
+    const Segment& segment;
     common::row_idx_t startRowInData;
     common::row_idx_t offsetInSegment;
     common::row_idx_t numRows;
@@ -31,11 +31,11 @@ struct SegmentCheckpointState {
 
 class ColumnChunk;
 struct ColumnCheckpointState {
-    ColumnChunkData& persistentData;
+    Segment& persistentData;
     std::vector<SegmentCheckpointState> segmentCheckpointStates;
     common::row_idx_t endRowIdxToWrite;
 
-    ColumnCheckpointState(ColumnChunkData& persistentData,
+    ColumnCheckpointState(Segment& persistentData,
         std::vector<SegmentCheckpointState> segmentCheckpointStates)
         : persistentData{persistentData},
           segmentCheckpointStates{std::move(segmentCheckpointStates)}, endRowIdxToWrite{0} {
@@ -55,8 +55,8 @@ public:
         bool enableCompression, ResidencyState residencyState, bool initializeToZero = true);
     ColumnChunk(MemoryManager& memoryManager, common::LogicalType&& dataType,
         bool enableCompression, ColumnChunkMetadata metadata);
-    ColumnChunk(bool enableCompression, std::unique_ptr<ColumnChunkData> data);
-    ColumnChunk(bool enableCompression, std::vector<std::unique_ptr<ColumnChunkData>> segments);
+    ColumnChunk(bool enableCompression, std::unique_ptr<Segment> data);
+    ColumnChunk(bool enableCompression, std::vector<std::unique_ptr<Segment>> segments);
 
     void initializeScanState(ChunkState& state, const Column* column) const;
     void scan(const transaction::Transaction* transaction, const ChunkState& state,
@@ -251,9 +251,9 @@ public:
     // TODO(bmwinger): This is not ideal; it's just a workaround for storage_info
     // We should either provide a way for ColumnChunk to provide its own details about the storage
     // structure, or maybe change the type of data to allow us to directly return a std::span<const
-    // ColumnChunkData> to get read-only info about the segments efficiently
-    std::vector<const ColumnChunkData*> getSegments() const {
-        std::vector<const ColumnChunkData*> segments;
+    // Segment> to get read-only info about the segments efficiently
+    std::vector<const Segment*> getSegments() const {
+        std::vector<const Segment*> segments;
         for (const auto& segment : data) {
             segments.push_back(segment.get());
         }
@@ -299,7 +299,8 @@ private:
     // TODO(Guodong): This field should be removed. Ideally it shouldn't be cached anywhere in
     // storage structures, instead should be fed into functions needed from ClientContext dbConfig.
     bool enableCompression;
-    std::vector<std::unique_ptr<ColumnChunkData>> data;
+    std::vector<std::unique_ptr<Segment>> data;
+    std::unique_ptr<ColumnChunk> nullChunk;
     // Update versions.
     std::unique_ptr<UpdateInfo> updateInfo;
 };
