@@ -188,21 +188,25 @@ static std::unique_ptr<PhysicalOperator> getPhysicalPlan(PlanMapper* planMapper,
     // Create RelBatchInsert and dummy sink operators.
     const auto upperBatchInsertSharedState = std::make_shared<BatchInsertSharedState>(fTable);
     auto upperInsertInfo = std::make_unique<RelBatchInsertInfo>(upperRelTableEntry->getName(),
-          std::vector<LogicalType>{} /* warningColumnTypes */, nodeTableID /* fromTableID */, nodeTableID /* toTableID */, RelDataDirection::FWD);
+        std::vector<LogicalType>{} /* warningColumnTypes */, nodeTableID /* fromTableID */,
+        nodeTableID /* toTableID */, RelDataDirection::FWD);
     auto upperPrintInfo = std::make_unique<RelBatchInsertPrintInfo>(upperRelTableEntry->getName());
     auto upperProgress = std::make_shared<RelBatchInsertProgressSharedState>();
     auto upperBatchInsert = std::make_unique<RelBatchInsert>(std::move(upperInsertInfo),
-         partitionerSharedState->upperPartitionerSharedState, upperBatchInsertSharedState,
-         planMapper->getOperatorID(), std::move(upperPrintInfo), upperProgress, std::make_unique<HNSWRelBatchInsert>());
+        partitionerSharedState->upperPartitionerSharedState, upperBatchInsertSharedState,
+        planMapper->getOperatorID(), std::move(upperPrintInfo), upperProgress,
+        std::make_unique<HNSWRelBatchInsert>());
 
     const auto lowerBatchInsertSharedState = std::make_shared<BatchInsertSharedState>(fTable);
     auto lowerInsertInfo = std::make_unique<RelBatchInsertInfo>(lowerRelTableEntry->getName(),
-       std::vector<LogicalType>{} /* warningColumnTypes */, nodeTableID /* fromTableID */, nodeTableID /* toTableID */, RelDataDirection::FWD);
+        std::vector<LogicalType>{} /* warningColumnTypes */, nodeTableID /* fromTableID */,
+        nodeTableID /* toTableID */, RelDataDirection::FWD);
     auto lowerPrintInfo = std::make_unique<RelBatchInsertPrintInfo>(lowerRelTableEntry->getName());
     auto lowerProgress = std::make_shared<RelBatchInsertProgressSharedState>();
     auto lowerBatchInsert = std::make_unique<RelBatchInsert>(std::move(lowerInsertInfo),
         partitionerSharedState->lowerPartitionerSharedState, lowerBatchInsertSharedState,
-        planMapper->getOperatorID(), std::move(lowerPrintInfo), lowerProgress, std::make_unique<HNSWRelBatchInsert>());
+        planMapper->getOperatorID(), std::move(lowerPrintInfo), lowerProgress,
+        std::make_unique<HNSWRelBatchInsert>());
 
     physical_op_vector_t children;
     children.push_back(std::move(upperBatchInsert));
