@@ -46,7 +46,7 @@ void WALReplayer::replay() const {
         Deserializer deserializer(std::make_unique<BufferedFileReader>(std::move(fileInfo)));
         RUNTIME_CHECK(bool nextRecordShouldBeRollback = false);
         while (!deserializer.finished()) {
-            // If an exception occurs while deserializing we will stop replaying
+            // If an exception occurs while deserializing, we will stop replaying
             auto walRecord = WALRecord::deserialize(deserializer, clientContext);
             KU_ASSERT(
                 !nextRecordShouldBeRollback || walRecord->type == WALRecordType::ROLLBACK_RECORD);

@@ -207,6 +207,20 @@ DatabaseHeader Checkpointer::getCurrentDatabaseHeader() const {
     if (clientContext.getStorageManager()->getDataFH()->getFileInfo()->getFileSize() <
         common::KUZU_PAGE_SIZE) {
         // If the data file hasn't been written to there is no existing database header
+        auto headerWriter = std::make_shared<common::MetaWriter>(clientContext.getMemoryManager());
+        common::Serializer headerSerializer(headerWriter);
+        writeMagicBytes(headerSerializer);
+        headerSerializer.writeDebuggingInfo("storage_version");
+        headerSerializer.serializeValue(StorageVersionInfo::getStorageVersion());
+        headerSerializer.writeDebuggingInfo("catalog");
+        headerSerializer.serializeValue(defaultHeader.catalogPageRange.startPageIdx);
+        headerSerializer.serializeValue(defaultHeader.catalogPageRange.numPages);
+        headerSerializer.writeDebuggingInfo("metadata");
+        headerSerializer.serializeValue(defaultHeader.metadataPageRange.startPageIdx);
+        headerSerializer.serializeValue(defaultHeader.metadataPageRange.numPages);
+        auto headerPage = headerWriter->getPage(0);
+        clientContext.getStorageManager()->getDataFH()->getFileInfo()->writeFile(headerPage.data(),
+            common::KUZU_PAGE_SIZE, 0);
         return defaultHeader;
     }
     auto vfs = clientContext.getVFSUnsafe();
@@ -244,6 +258,11 @@ void Checkpointer::readCheckpoint(const std::string& dbPath, main::ClientContext
     auto reader = std::make_unique<common::BufferedFileReader>(std::move(fileInfo));
     common::Deserializer deSer(std::move(reader));
     auto currentHeader = readDatabaseHeader(deSer);
+    if (currentHeader.catalogPageRange.startPageIdx == common::INVALID_PAGE_IDX) {
+        // If the catalog page range is invalid, it means there is no catalog to read, thus the
+        // database is empty.
+        return;
+    }
     deSer.getReader()->cast<common::BufferedFileReader>()->resetReadOffset(
         currentHeader.catalogPageRange.startPageIdx * common::KUZU_PAGE_SIZE);
     catalog->deserialize(deSer);
